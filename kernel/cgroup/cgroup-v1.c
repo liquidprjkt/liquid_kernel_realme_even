@@ -585,6 +585,13 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 		devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 1250);
 	}
 
+	/* This covers boosting for app launches and app transitions */
+	if (!ret && !threadgroup &&
+	    !strcmp(of->kn->parent->name, "top-app") &&
+	    is_zygote_pid(task->parent->pid)) {
+		devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 1250);
+	}
+
 out_finish:
 	cgroup_procs_write_finish(task);
 out_unlock:

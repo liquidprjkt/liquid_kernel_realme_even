@@ -1390,6 +1390,9 @@ static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
 	/* Don't let userspace impose restrictions on CPU idle levels */
 	return count;
 
+	/* Don't let userspace impose restrictions on CPU idle levels */
+	return count;
+
 	if (count == sizeof(s32)) {
 		if (copy_from_user(&value, buf, sizeof(s32)))
 			return -EFAULT;

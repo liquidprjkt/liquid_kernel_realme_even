@@ -335,3 +335,8 @@ source "fs/oexfat/Kconfig"
 #endif
 
 endmenu
+
+config BLOCK_UNWANTED_FILES
+	bool "Allow blocking files from executing from kernel"
+	help
+	  This option allows you to make files from certain folders un-openable.

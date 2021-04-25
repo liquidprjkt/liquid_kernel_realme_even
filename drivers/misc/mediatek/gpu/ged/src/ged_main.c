@@ -32,6 +32,7 @@
 #include <linux/kthread.h>
 #include <mt-plat/aee.h>
 
+#include "ged_ski.h"
 #ifdef GED_DEBUG_FS
 #include "ged_debugFS.h"
 #endif
@@ -447,6 +448,8 @@ static void ged_exit(void)
 	ged_debugFS_exit();
 #endif
 
+        ged_ski_exit();
+
 	ged_sysfs_exit();
 
 	remove_proc_entry(GED_DRIVER_DEVICE_NAME, NULL);
@@ -468,6 +471,12 @@ static int ged_init(void)
 	err = ged_sysfs_init();
 	if (unlikely(err != GED_OK)) {
 		GED_LOGE("ged: failed to init sys FS!\n");
+		goto ERROR;
+	}
+
+	err = ged_ski_init();
+	if (unlikely(err != GED_OK)) {
+		GED_LOGE("ged: failed to init ski!\n");
 		goto ERROR;
 	}
 

@@ -192,6 +192,7 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
+	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CURRENT_AVG,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
@@ -504,6 +505,9 @@ static int battery_get_property(struct power_supply *psy,
 
 		val->intval = fgcurrent * 100;
 		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+	        val->intval = battery_get_bat_voltage() * 1000;
+	        break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
 		val->intval = battery_get_bat_avg_current() * 100;
 		break;

@@ -113,7 +113,6 @@ OPLUS_FEATURE_HDR10PLUS_CETIFICATION \
 OPLUS_FEATURE_MTK_ION_SEPARATE_LOCK
 
 $(foreach myfeature,$(ALLOWED_MCROS),\
-         $(warning myfeature is $(myfeature)) \
          $(eval KBUILD_CFLAGS += -D$(myfeature)) \
          $(eval KBUILD_CPPFLAGS += -D$(myfeature)) \
          $(eval CFLAGS_KERNEL += -D$(myfeature)) \

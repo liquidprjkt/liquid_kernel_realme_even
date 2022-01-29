@@ -141,7 +141,7 @@ extern unsigned long svm_oom_jiffies;
 extern int rlimit_svm_log;
 
 extern void init_reserve_mm(struct mm_struct* mm);
-extern inline unsigned long vm_mmap_pgoff_with_check(struct file *file,
+extern unsigned long vm_mmap_pgoff_with_check(struct file *file,
 		unsigned long addr, unsigned long len, unsigned long prot,
 		unsigned long flags, unsigned long pgoff);
 extern void exit_reserved_mmap(struct mm_struct *mm);

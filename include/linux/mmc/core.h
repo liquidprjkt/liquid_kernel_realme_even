@@ -8,6 +8,7 @@
 #ifndef LINUX_MMC_CORE_H
 #define LINUX_MMC_CORE_H
 
+#include <linux/interrupt.h>
 #include <linux/completion.h>
 #include <linux/types.h>
 
@@ -163,12 +164,47 @@ struct mmc_request {
 	 */
 	void			(*recovery_notifier)(struct mmc_request *);
 	struct mmc_host		*host;
+#ifdef CONFIG_MTK_EMMC_CQ_SUPPORT
+	struct mmc_async_req	*areq;
+	int			flags;
+	struct list_head	link;
+	struct list_head	hlist;
+#endif
 
+	struct request		*req;
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
+	bool		is_mmc_req; /* request is from mmc layer */
+#endif
+
+#ifdef CONFIG_MTK_EMMC_HW_CQ
+	struct mmc_cmdq_req *cmdq_req;
+#endif
+#if defined(VENDOR_EDIT) && defined(CONFIG_OPPO_HEALTHINFO)
+    //yh@PSW.BSP.Storage.Emmc, 2018-09-30, Add for monitor cmdq driver wait time
+    ktime_t cmdq_request_time_start;
+#endif
 	/* Allow other commands during this ongoing data transfer or busy wait */
 	bool			cap_cmd_during_tfr;
 
 	int			tag;
+#ifdef CONFIG_MMC_CRYPTO
+	int crypto_key_slot;
+	u64 data_unit_num;
+	const struct blk_crypto_key *crypto_key;
+#endif
 };
+
+#ifdef CONFIG_MMC_CRYPTO
+static inline bool mmc_request_crypto_enabled(const struct mmc_request *mrq)
+{
+	return mrq->crypto_key != NULL;
+}
+#else
+static inline bool mmc_request_crypto_enabled(const struct mmc_request *mrq)
+{
+	return false;
+}
+#endif
 
 struct mmc_card;
 
@@ -177,6 +213,9 @@ int mmc_wait_for_cmd(struct mmc_host *host, struct mmc_command *cmd,
 		int retries);
 
 int mmc_hw_reset(struct mmc_host *host);
+#ifdef CONFIG_MTK_EMMC_HW_CQ
+int mmc_cmdq_hw_reset(struct mmc_host *host);
+#endif
 void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card);
 
 #endif /* LINUX_MMC_CORE_H */

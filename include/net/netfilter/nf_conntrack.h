@@ -27,6 +27,8 @@
 
 #include <net/netfilter/nf_conntrack_tuple.h>
 
+#define OPLUS_FEATURE_WIFI_LUCKYMONEY
+
 /* per conntrack: protocol private data */
 union nf_conntrack_proto {
 	/* insert conntrack proto private data here */
@@ -81,6 +83,27 @@ struct nf_conn {
 #endif
 	/* all members below initialized via memset */
 	struct { } __nfct_init_offset;
+
+    //#ifdef OPLUS_FEATURE_WIFI_SLA
+    //HuangJunyuan@CONNECTIVITY.WIFI.INTERNET.1197891, 2018/04/10,Add code for appo sla function
+	u32 oplus_game_skb_len;
+	u32 oplus_game_detect_status;
+	u32 oplus_game_time_interval;
+	u32 oplus_game_up_count;
+	u32 oplus_game_down_count;
+	u32 oplus_game_lost_count;
+	u32 oplus_game_same_count;
+	u32 oplus_http_flag;
+	u32 oplus_skb_count;
+	int oplus_app_type;
+	s64 oplus_game_timestamp;
+	s64 oplus_game_last_timestamp;
+	//#endif /* OPLUS_FEATURE_WIFI_SLA */
+
+	#ifdef OPLUS_FEATURE_WIFI_LUCKYMONEY
+	//HuangYuan@CONNECTIVITY.WIFI.INTERNET, 2018/06/18, Add for WeChat lucky money recognition
+	u32 oplus_app_uid;
+	#endif /* OPLUS_FEATURE_WIFI_LUCKYMONEY */
 
 	/* If we were expected by an expectation, this will be it */
 	struct nf_conn *master;
@@ -285,7 +308,7 @@ static inline bool nf_ct_should_gc(const struct nf_conn *ct)
 
 struct kernel_param;
 
-int nf_conntrack_set_hashsize(const char *val, struct kernel_param *kp);
+int nf_conntrack_set_hashsize(const char *val, const struct kernel_param *kp);
 int nf_conntrack_hash_resize(unsigned int hashsize);
 
 extern struct hlist_nulls_head *nf_conntrack_hash;

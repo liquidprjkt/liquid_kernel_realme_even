@@ -200,6 +200,9 @@ struct bpf_prog_aux {
 	struct bpf_map **used_maps;
 	struct bpf_prog *prog;
 	struct user_struct *user;
+#ifdef CONFIG_SECURITY
+	void *security;
+#endif
 	union {
 		struct work_struct work;
 		struct rcu_head	rcu;
@@ -252,8 +255,63 @@ int bpf_prog_test_run_xdp(struct bpf_prog *prog, const union bpf_attr *kattr,
 int bpf_prog_test_run_skb(struct bpf_prog *prog, const union bpf_attr *kattr,
 			  union bpf_attr __user *uattr);
 
+/* an array of programs to be executed under rcu_lock.
+ *
+ * Typical usage:
+ * ret = BPF_PROG_RUN_ARRAY(&bpf_prog_array, ctx, BPF_PROG_RUN);
+ *
+ * the structure returned by bpf_prog_array_alloc() should be populated
+ * with program pointers and the last pointer must be NULL.
+ * The user has to keep refcnt on the program and make sure the program
+ * is removed from the array before bpf_prog_put().
+ * The 'struct bpf_prog_array *' should only be replaced with xchg()
+ * since other cpus are walking the array of pointers in parallel.
+ */
+struct bpf_prog_array {
+	struct rcu_head rcu;
+	struct bpf_prog *progs[0];
+};
+
+struct bpf_prog_array __rcu *bpf_prog_array_alloc(u32 prog_cnt, gfp_t flags);
+void bpf_prog_array_free(struct bpf_prog_array __rcu *progs);
+
+void bpf_prog_array_delete_safe(struct bpf_prog_array __rcu *progs,
+				struct bpf_prog *old_prog);
+int bpf_prog_array_copy(struct bpf_prog_array __rcu *old_array,
+			struct bpf_prog *exclude_prog,
+			struct bpf_prog *include_prog,
+			struct bpf_prog_array **new_array);
+
+#define __BPF_PROG_RUN_ARRAY(array, ctx, func, check_non_null)	\
+	({						\
+		struct bpf_prog **_prog, *__prog;	\
+		struct bpf_prog_array *_array;		\
+		u32 _ret = 1;				\
+		rcu_read_lock();			\
+		_array = rcu_dereference(array);	\
+		if (unlikely(check_non_null && !_array))\
+			goto _out;			\
+		_prog = _array->progs;			\
+		while ((__prog = READ_ONCE(*_prog))) {	\
+			_ret &= func(__prog, ctx);	\
+			_prog++;			\
+		}					\
+_out:							\
+		rcu_read_unlock();			\
+		_ret;					\
+	 })
+
+#define BPF_PROG_RUN_ARRAY(array, ctx, func)		\
+	__BPF_PROG_RUN_ARRAY(array, ctx, func, false)
+
+#define BPF_PROG_RUN_ARRAY_CHECK(array, ctx, func)	\
+	__BPF_PROG_RUN_ARRAY(array, ctx, func, true)
+
 #ifdef CONFIG_BPF_SYSCALL
 DECLARE_PER_CPU(int, bpf_prog_active);
+
+extern const struct file_operations bpf_map_fops;
+extern const struct file_operations bpf_prog_fops;
 
 #define BPF_PROG_TYPE(_id, _ops) \
 	extern const struct bpf_verifier_ops _ops;
@@ -284,11 +342,11 @@ void bpf_map_area_free(void *base);
 
 extern int sysctl_unprivileged_bpf_disabled;
 
-int bpf_map_new_fd(struct bpf_map *map);
+int bpf_map_new_fd(struct bpf_map *map, int flags);
 int bpf_prog_new_fd(struct bpf_prog *prog);
 
 int bpf_obj_pin_user(u32 ufd, const char __user *pathname);
-int bpf_obj_get_user(const char __user *pathname);
+int bpf_obj_get_user(const char __user *pathname, int flags);
 
 int bpf_percpu_hash_copy(struct bpf_map *map, void *key, void *value);
 int bpf_percpu_array_copy(struct bpf_map *map, void *key, void *value);
@@ -305,6 +363,8 @@ int bpf_fd_array_map_lookup_elem(struct bpf_map *map, void *key, u32 *value);
 int bpf_fd_htab_map_update_elem(struct bpf_map *map, struct file *map_file,
 				void *key, void *value, u64 map_flags);
 int bpf_fd_htab_map_lookup_elem(struct bpf_map *map, void *key, u32 *value);
+
+int bpf_get_file_flag(int flags);
 
 /* memcpy that is used with 8-byte aligned pointers, power-of-8 size and
  * forced to use 'long' read/writes to try to atomically copy long counters.
@@ -324,6 +384,8 @@ static inline void bpf_long_memcpy(void *dst, const void *src, u32 size)
 
 /* verify correctness of eBPF program */
 int bpf_check(struct bpf_prog **fp, union bpf_attr *attr);
+
+struct bpf_prog *bpf_prog_get_type_path(const char *name, enum bpf_prog_type type);
 
 /* Map specifics */
 struct net_device  *__dev_map_lookup_elem(struct bpf_map *map, u32 key);
@@ -382,9 +444,15 @@ static inline void __bpf_prog_uncharge(struct user_struct *user, u32 pages)
 {
 }
 
-static inline int bpf_obj_get_user(const char __user *pathname)
+static inline int bpf_obj_get_user(const char __user *pathname, int flags)
 {
 	return -EOPNOTSUPP;
+}
+
+static inline struct bpf_prog *bpf_prog_get_type_path(const char *name,
+				enum bpf_prog_type type)
+{
+	return ERR_PTR(-EOPNOTSUPP);
 }
 
 static inline struct net_device  *__dev_map_lookup_elem(struct bpf_map *map,

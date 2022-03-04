@@ -13,6 +13,7 @@ struct ipv6_devconf {
 	__s32		forwarding;
 	__s32		hop_limit;
 	__s32		mtu6;
+	__s32		ra_mtu;
 	__s32		accept_ra;
 	__s32		accept_redirects;
 	__s32		autoconf;
@@ -42,6 +43,7 @@ struct ipv6_devconf {
 	__s32		accept_ra_rt_info_max_plen;
 #endif
 #endif
+	__s32		accept_ra_rt_table;
 	__s32		proxy_ndp;
 	__s32		accept_source_route;
 	__s32		accept_ra_from_local;

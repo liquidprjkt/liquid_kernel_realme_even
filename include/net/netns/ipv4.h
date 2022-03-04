@@ -128,8 +128,14 @@ struct netns_ipv4 {
 	int sysctl_tcp_sack;
 	int sysctl_tcp_window_scaling;
 	int sysctl_tcp_timestamps;
+	int sysctl_tcp_default_init_rwnd;
 	struct inet_timewait_death_row tcp_death_row;
 	int sysctl_max_syn_backlog;
+
+	#ifdef OPLUS_BUG_STABILITY
+	//PengHao@CONNECTIVITY.WIFI.INTERNET.1854960,2019/03/30,add for disable tcp random timestamp,some networks limit tcp syn before login
+	int sysctl_tcp_random_timestamp;
+	#endif /* OPLUS_BUG_STABILITY */
 
 #ifdef CONFIG_NET_L3_MASTER_DEV
 	int sysctl_udp_l3mdev_accept;

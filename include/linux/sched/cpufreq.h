@@ -12,7 +12,9 @@
 #define SCHED_CPUFREQ_DL	(1U << 1)
 #define SCHED_CPUFREQ_IOWAIT	(1U << 2)
 
-#define SCHED_CPUFREQ_RT_DL	(SCHED_CPUFREQ_RT | SCHED_CPUFREQ_DL)
+#if defined (CONFIG_SCHED_WALT)  && defined (OPLUS_FEATURE_UIFIRST)
+#define SCHED_CPUFREQ_BOOST (1U << 9)
+#endif /* OPLUS_FEATURE_UIFIRST */
 
 #ifdef CONFIG_CPU_FREQ
 struct update_util_data {

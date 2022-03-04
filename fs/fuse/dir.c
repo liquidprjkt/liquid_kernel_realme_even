@@ -16,6 +16,135 @@
 #include <linux/xattr.h>
 #include <linux/posix_acl.h>
 
+#ifdef CONFIG_OPLUS_FEATURE_ACM
+//Yuwei.Guan@BSP.Kernel.FS,2020/07/08, Add for acm
+#include <linux/acm_fs.h>
+#define ACM_PHOTO 1
+#define ACM_VIDEO 2
+#define ACM_NOMEDIA 3
+#define ACM_NOMEDIA_NAME ".nomedia"
+
+#define MIN_FNAME_LEN 2
+static int is_media_extension(const unsigned char *s, const char *sub)
+{
+	size_t slen = strlen((const char *)s);
+	size_t sublen = strlen(sub);
+
+	if (slen < sublen + MIN_FNAME_LEN)
+		return 0;
+
+	if (s[slen - sublen - 1] != '.')
+		return 0;
+
+	if (!strncasecmp((const char *)s + slen - sublen, sub, sublen))
+		return 1;
+	return 0;
+}
+
+static int is_photo_file(struct dentry *dentry)
+{
+	static const char *const ext[] = {
+		"jpg", "jpe", "jpeg", "gif", "png", "bmp", "wbmp",
+		"webp", "dng", "cr2", "nef", "nrw", "arw", "rw2",
+		"orf", "raf", "pef", "srw", "heic", "heif", NULL
+	};
+	int i;
+
+	for (i = 0; ext[i]; i++) {
+		if (is_media_extension(dentry->d_name.name, ext[i]))
+			return ACM_PHOTO;
+	}
+
+	return 0;
+}
+
+static int is_video_file(struct dentry *dentry)
+{
+	static const char *const ext[] = {
+		"mpeg", "mpg", "mp4", "m4v", "mov", "3gp", "3gpp", "3g2",
+		"3gpp2", "mkv", "webm", "ts", "avi", "f4v", "flv", "m2ts",
+		"divx", "wmv", "asf", NULL
+	};
+	int i;
+
+	for (i = 0; ext[i]; i++) {
+		if (is_media_extension(dentry->d_name.name, ext[i]))
+			return ACM_VIDEO;
+	}
+
+	return 0;
+}
+
+static int is_nomedia_file(struct dentry *dentry)
+{
+	if (strcmp(dentry->d_name.name, ACM_NOMEDIA_NAME) == 0)
+		return ACM_NOMEDIA;
+	else
+		return 0;
+}
+
+static int get_monitor_file_type(struct dentry *dentry)
+{
+	int file_type = 0;
+
+	if ((file_type = is_photo_file(dentry)) != 0)
+		return file_type;
+
+	file_type = is_video_file(dentry);
+
+	return file_type;
+}
+
+static int should_monitor_file(struct dentry *dentry, int operation)
+{
+	int file_type = 0;
+
+	if (operation == FUSE_UNLINK) {
+		if (acm_opstat(ACM_FLAG_LOGGING | ACM_FLAG_DEL))
+			file_type = get_monitor_file_type(dentry);
+	} else if (operation == FUSE_RENAME || operation == FUSE_RENAME2) {
+		if (acm_opstat(ACM_FLAG_LOGGING))
+			file_type = get_monitor_file_type(dentry);
+	} else if (operation == FUSE_CREATE || operation == FUSE_MKNOD) {
+		if (acm_opstat(ACM_FLAG_LOGGING | ACM_FLAG_CRT))
+			file_type = is_nomedia_file(dentry);
+	}
+
+	return file_type;
+}
+
+static int monitor_acm(struct dentry *dentry, int op)
+{
+	struct inode *inode = d_inode(dentry);
+	int file_type = 0x0f;
+	int err = 0;
+
+	if (!acm_opstat(ACM_FLAG_LOGGING | ACM_FLAG_DEL | ACM_FLAG_CRT))
+		goto monitor_ret;
+
+	if (S_ISREG(inode->i_mode)) {
+		file_type = should_monitor_file(dentry, op);
+		if (file_type == 0) {
+			goto monitor_ret;
+		}
+	} else if (S_ISDIR(inode->i_mode)) {
+		if (!(acm_opstat(ACM_FLAG_DEL))) {
+			goto monitor_ret;
+		}
+	} else {
+		goto monitor_ret;
+	}
+
+	printk("ACM: %s %s op=%d file_type=%d\n", __func__, dentry->d_name.name,
+		op, file_type);
+
+	err = acm_search(dentry, file_type, op);
+
+monitor_ret:
+	return err;
+}
+#endif
+
 static bool fuse_use_readdirplus(struct inode *dir, struct dir_context *ctx)
 {
 	struct fuse_conn *fc = get_fuse_conn(dir);
@@ -263,6 +392,50 @@ invalid:
 	goto out;
 }
 
+/*
+ * Get the canonical path. Since we must translate to a path, this must be done
+ * in the context of the userspace daemon, however, the userspace daemon cannot
+ * look up paths on its own. Instead, we handle the lookup as a special case
+ * inside of the write request.
+ */
+static void fuse_dentry_canonical_path(const struct path *path, struct path *canonical_path) {
+	struct inode *inode = path->dentry->d_inode;
+	struct fuse_conn *fc = get_fuse_conn(inode);
+	struct fuse_req *req;
+	int err;
+	char *path_name;
+
+	req = fuse_get_req(fc, 1);
+	err = PTR_ERR(req);
+	if (IS_ERR(req))
+		goto default_path;
+
+	path_name = (char*)__get_free_page(GFP_KERNEL);
+	if (!path_name) {
+		fuse_put_request(fc, req);
+		goto default_path;
+	}
+
+	req->in.h.opcode = FUSE_CANONICAL_PATH;
+	req->in.h.nodeid = get_node_id(inode);
+	req->in.numargs = 0;
+	req->out.numargs = 1;
+	req->out.args[0].size = PATH_MAX;
+	req->out.args[0].value = path_name;
+	req->canonical_path = canonical_path;
+	req->out.argvar = 1;
+	fuse_request_send(fc, req);
+	err = req->out.h.error;
+	fuse_put_request(fc, req);
+	free_page((unsigned long)path_name);
+	if (!err)
+		return;
+default_path:
+	canonical_path->dentry = path->dentry;
+	canonical_path->mnt = path->mnt;
+	path_get(canonical_path);
+}
+
 static int invalid_nodeid(u64 nodeid)
 {
 	return !nodeid || nodeid == FUSE_ROOT_ID;
@@ -285,11 +458,13 @@ const struct dentry_operations fuse_dentry_operations = {
 	.d_revalidate	= fuse_dentry_revalidate,
 	.d_init		= fuse_dentry_init,
 	.d_release	= fuse_dentry_release,
+	.d_canonical_path = fuse_dentry_canonical_path,
 };
 
 const struct dentry_operations fuse_root_dentry_operations = {
 	.d_init		= fuse_dentry_init,
 	.d_release	= fuse_dentry_release,
+	.d_canonical_path = fuse_dentry_canonical_path,
 };
 
 int fuse_valid_type(int m)
@@ -418,6 +593,9 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry,
 	struct fuse_open_out outopen;
 	struct fuse_entry_out outentry;
 	struct fuse_file *ff;
+#ifdef CONFIG_OPLUS_FEATURE_FUSE_FS_SHORTCIRCUIT
+	char *iname;
+#endif /* CONFIG_OPLUS_FEATURE_FUSE_FS_SHORTCIRCUIT */
 
 	/* Userspace expects S_IFREG in create mode */
 	BUG_ON((mode & S_IFMT) != S_IFREG);
@@ -453,7 +631,27 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry,
 	args.out.args[0].value = &outentry;
 	args.out.args[1].size = sizeof(outopen);
 	args.out.args[1].value = &outopen;
+#ifdef CONFIG_OPLUS_FEATURE_FUSE_FS_SHORTCIRCUIT
+//shubin@BSP.Kernel.FS 2020/08/20 improving fuse storage performance
+	args.private_lower_rw_file = NULL;
+	iname = inode_name(dir);
+	if (iname) {
+		/* compose full path */
+		if ((strlen(iname) + entry->d_name.len + 2) <= PATH_MAX) {
+			strlcat(iname, "/", PATH_MAX);
+			strlcat(iname, entry->d_name.name, PATH_MAX);
+		} else {
+			__putname(iname);
+			iname = NULL;
+		}
+	}
+	args.iname = iname;
+#endif /* CONFIG_OPLUS_FEATURE_FUSE_FS_SHORTCIRCUIT */
 	err = fuse_simple_request(fc, &args);
+#ifdef CONFIG_OPLUS_FEATURE_FUSE_FS_SHORTCIRCUIT
+	if (args.iname)
+		__putname(args.iname);
+#endif /* CONFIG_OPLUS_FEATURE_FUSE_FS_SHORTCIRCUIT */
 	if (err)
 		goto out_free_ff;
 
@@ -465,6 +663,11 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry,
 	ff->fh = outopen.fh;
 	ff->nodeid = outentry.nodeid;
 	ff->open_flags = outopen.open_flags;
+#ifdef CONFIG_OPLUS_FEATURE_FUSE_FS_SHORTCIRCUIT
+//shubin@BSP.Kernel.FS 2020/08/20 improving fuse storage performance
+	if (args.private_lower_rw_file != NULL)
+		ff->rw_lower_file = args.private_lower_rw_file;
+#endif /* CONFIG_OPLUS_FEATURE_FUSE_FS_SHORTCIRCUIT */
 	inode = fuse_iget(dir->i_sb, outentry.nodeid, outentry.generation,
 			  &outentry.attr, entry_attr_timeout(&outentry), 0);
 	if (!inode) {
@@ -485,6 +688,10 @@ static int fuse_create_open(struct inode *dir, struct dentry *entry,
 		file->private_data = ff;
 		fuse_finish_open(inode, file);
 	}
+#ifdef CONFIG_OPLUS_FEATURE_ACM
+//Yuwei.Guan@BSP.Kernel.FS,2020/07/08, Add for acm
+	monitor_acm(entry, args.in.h.opcode);
+#endif
 	return err;
 
 out_free_ff:
@@ -585,6 +792,11 @@ static int create_new_entry(struct fuse_conn *fc, struct fuse_args *args,
 
 	fuse_change_entry_timeout(entry, &outarg);
 	fuse_invalidate_attr(dir);
+#ifdef CONFIG_OPLUS_FEATURE_ACM
+//Yuwei.Guan@BSP.Kernel.FS,2020/07/08, Add for acm
+	if (args->in.h.opcode == FUSE_MKNOD)
+		monitor_acm(entry, args->in.h.opcode);
+#endif
 	return 0;
 
  out_put_forget_req:
@@ -677,6 +889,14 @@ static int fuse_unlink(struct inode *dir, struct dentry *entry)
 	args.in.numargs = 1;
 	args.in.args[0].size = entry->d_name.len + 1;
 	args.in.args[0].value = entry->d_name.name;
+#ifdef CONFIG_OPLUS_FEATURE_ACM
+//Yuwei.Guan@BSP.Kernel.FS,2020/07/08, Add for acm
+	err = monitor_acm(entry, args.in.h.opcode);
+	if (err) {
+		err = ACM_DELETE_ERR;
+		return err;
+	}
+#endif
 	err = fuse_simple_request(fc, &args);
 	if (!err) {
 		struct inode *inode = d_inode(entry);
@@ -713,6 +933,14 @@ static int fuse_rmdir(struct inode *dir, struct dentry *entry)
 	args.in.numargs = 1;
 	args.in.args[0].size = entry->d_name.len + 1;
 	args.in.args[0].value = entry->d_name.name;
+#ifdef CONFIG_OPLUS_FEATURE_ACM
+//Yuwei.Guan@BSP.Kernel.FS,2020/07/08, Add for acm
+	err = monitor_acm(entry, args.in.h.opcode);
+	if (err) {
+		err = ACM_DELETE_ERR;
+		return err;
+	}
+#endif
 	err = fuse_simple_request(fc, &args);
 	if (!err) {
 		clear_nlink(d_inode(entry));
@@ -775,7 +1003,10 @@ static int fuse_rename_common(struct inode *olddir, struct dentry *oldent,
 		if (d_really_is_positive(newent))
 			fuse_invalidate_entry(newent);
 	}
-
+#ifdef CONFIG_OPLUS_FEATURE_ACM
+//Yuwei.Guan@BSP.Kernel.FS,2020/07/08, Add for acm
+	monitor_acm(oldent, args.in.h.opcode);
+#endif
 	return err;
 }
 
@@ -805,7 +1036,6 @@ static int fuse_rename2(struct inode *olddir, struct dentry *oldent,
 					 FUSE_RENAME,
 					 sizeof(struct fuse_rename_in));
 	}
-
 	return err;
 }
 

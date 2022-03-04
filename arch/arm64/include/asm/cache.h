@@ -34,7 +34,7 @@
 #define ICACHE_POLICY_VIPT	2
 #define ICACHE_POLICY_PIPT	3
 
-#define L1_CACHE_SHIFT		7
+#define L1_CACHE_SHIFT		6
 #define L1_CACHE_BYTES		(1 << L1_CACHE_SHIFT)
 
 /*
@@ -45,6 +45,10 @@
  * the CPU.
  */
 #define ARCH_DMA_MINALIGN	L1_CACHE_BYTES
+
+#ifdef CONFIG_KASAN_SW_TAGS
+#define ARCH_SLAB_MINALIGN	(1ULL << KASAN_SHADOW_SCALE_SHIFT)
+#endif
 
 #ifndef __ASSEMBLY__
 

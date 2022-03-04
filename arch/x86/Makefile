@@ -112,6 +112,8 @@ else
         KBUILD_CFLAGS += $(call cc-option,-mno-80387)
         KBUILD_CFLAGS += $(call cc-option,-mno-fp-ret-in-387)
 
+        KBUILD_CFLAGS += -fno-pic
+
         # By default gcc and clang use a stack alignment of 16 bytes for x86.
         # However the standard kernel entry on x86-64 leaves the stack on an
         # 8-byte boundary. If the compiler isn't informed about the actual
@@ -231,6 +233,11 @@ LDFLAGS := -m elf_$(UTS_MACHINE)
 #
 ifdef CONFIG_X86_64
 LDFLAGS += $(call ld-option, -z max-page-size=0x200000)
+endif
+
+ifdef CONFIG_LTO_CLANG
+KBUILD_LDFLAGS	+= -plugin-opt=-code-model=kernel \
+		   -plugin-opt=-stack-alignment=$(if $(CONFIG_X86_32),4,8)
 endif
 
 # Speed up the build

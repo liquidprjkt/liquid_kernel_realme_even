@@ -39,7 +39,10 @@ KBUILD_CFLAGS	+= $(call cc-option,-mno-unaligned-access)
 endif
 
 ifeq ($(CONFIG_FRAME_POINTER),y)
-KBUILD_CFLAGS	+=-fno-omit-frame-pointer -mapcs -mno-sched-prolog
+KBUILD_CFLAGS	+=-fno-omit-frame-pointer
+ifeq ($(cc-name),gcc)
+KBUILD_CFLAGS += -mapcs -mno-sched-prolog
+endif
 endif
 
 ifeq ($(CONFIG_CPU_BIG_ENDIAN),y)
@@ -113,6 +116,10 @@ endif
 
 ifeq ($(CONFIG_ARM_UNWIND),y)
 CFLAGS_ABI	+=-funwind-tables
+endif
+
+ifeq ($(cc-name),clang)
+CFLAGS_ABI	+= -meabi gnu
 endif
 
 # Accept old syntax despite ".syntax unified"
@@ -305,6 +312,8 @@ libs-y				:= arch/arm/lib/ $(libs-y)
 boot := arch/arm/boot
 ifeq ($(CONFIG_XIP_KERNEL),y)
 KBUILD_IMAGE := $(boot)/xipImage
+else ifeq ($(CONFIG_BUILD_ARM_APPENDED_DTB_IMAGE),y)
+KBUILD_IMAGE := $(boot)/zImage-dtb
 else
 KBUILD_IMAGE := $(boot)/zImage
 endif
@@ -315,12 +324,14 @@ KBUILD_DTBS := dtbs
 endif
 
 all:	$(notdir $(KBUILD_IMAGE)) $(KBUILD_DTBS)
-
+MTK_PLATFORM := $(CONFIG_MTK_PLATFORM:"%"=%)
+MTK_PROJECT := $(CONFIG_ARCH_MTK_PROJECT:"%"=%)
+export MTK_PLATFORM MTK_PROJECT
 
 archheaders:
 	$(Q)$(MAKE) $(build)=arch/arm/tools uapi
 
-archprepare:
+archprepare: $(DRVGEN_FILE_LIST)
 	$(Q)$(MAKE) $(build)=arch/arm/tools kapi
 
 # Convert bzImage to zImage
@@ -357,6 +368,9 @@ vdso_install:
 ifeq ($(CONFIG_VDSO),y)
 	$(Q)$(MAKE) $(build)=arch/arm/vdso $@
 endif
+
+zImage-dtb: vmlinux scripts dtbs
+	$(Q)$(MAKE) $(build)=$(boot) MACHINE=$(MACHINE) $(boot)/$@
 
 # We use MRPROPER_FILES and CLEAN_FILES now
 archclean:

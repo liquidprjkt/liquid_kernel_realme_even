@@ -33,6 +33,34 @@ int pcibus_to_node(struct pci_bus *bus);
 
 #endif /* CONFIG_NUMA */
 
+#include <linux/arch_topology.h>
+
+/* Replace task scheduler's default frequency-invariant accounting */
+#define arch_scale_freq_capacity topology_get_freq_scale
+
+/* Replace task scheduler's default max-frequency-invariant accounting */
+#define arch_scale_max_freq_capacity topology_get_max_freq_scale
+
+/* Replace task scheduler's default cpu-invariant accounting */
+#define arch_scale_cpu_capacity topology_get_cpu_scale
+
+/* Enable topology flag updates */
+#define arch_update_cpu_topology topology_update_cpu_topology
+
+/* Arch max frequency */
+#define arch_max_cpu_freq topology_get_max_cpu_freq
+
+/* Ceiling/floor frequency sacle */
+#define arch_max_freq_scale topology_get_max_freq_scale
+#define arch_min_freq_scale topology_get_min_freq_scale
+
+/* Extras of CPU & Cluster functions */
+int arch_is_multi_cluster(void);
+int arch_is_smp(void);
+int arch_get_nr_clusters(void);
+int arch_get_cluster_id(unsigned int cpu);
+void arch_build_cpu_topology_domain(void);
+
 #include <asm-generic/topology.h>
 
 #endif /* _ASM_ARM_TOPOLOGY_H */

@@ -37,6 +37,13 @@ config CPU_FREQ_STAT
 
 	  If in doubt, say N.
 
+config CPU_FREQ_TIMES
+       bool "CPU frequency time-in-state statistics"
+       help
+         Export CPU time-in-state information through procfs.
+
+         If in doubt, say N.
+
 choice
 	prompt "Default CPUFreq governor"
 	default CPU_FREQ_DEFAULT_GOV_USERSPACE if ARM_SA1100_CPUFREQ || ARM_SA1110_CPUFREQ
@@ -93,6 +100,15 @@ config CPU_FREQ_DEFAULT_GOV_CONSERVATIVE
 	  Be aware that not all cpufreq drivers support the conservative
 	  governor. If unsure have a look at the help section of the
 	  driver. Fallback governor will be the performance governor.
+
+config CPU_FREQ_DEFAULT_GOV_INTERACTIVE
+	bool "interactive"
+	select CPU_FREQ_GOV_INTERACTIVE
+	help
+	  Use the CPUFreq governor 'interactive' as default. This allows
+	  you to get a full dynamic cpu frequency capable system by simply
+	  loading your cpufreq low-level hardware driver, using the
+	  'interactive' governor for latency-sensitive workloads.
 
 config CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
 	bool "schedutil"
@@ -161,6 +177,20 @@ config CPU_FREQ_GOV_ONDEMAND
 
 	  If in doubt, say N.
 
+config CPU_FREQ_GOV_INTERACTIVE
+	bool "'interactive' cpufreq policy governor"
+	help
+	  'interactive' - This driver adds a dynamic cpufreq policy governor
+	  designed for latency-sensitive workloads.
+
+	  This governor attempts to reduce the latency of clock
+	  increases so that the system is more responsive to
+	  interactive workloads.
+
+	  For details, take a look at linux/Documentation/cpu-freq.
+
+	  If in doubt, say N.
+
 config CPU_FREQ_GOV_CONSERVATIVE
 	tristate "'conservative' cpufreq governor"
 	depends on CPU_FREQ
@@ -202,6 +232,14 @@ config CPU_FREQ_GOV_SCHEDUTIL
 
 	  If in doubt, say N.
 
+#ifdef OPLUS_FEATURE_SCHEDUTIL_USE_TL
+config SCHEDUTIL_USE_TL
+	bool "use target loads in schedutil governor"
+	depends on CPU_FREQ_GOV_SCHEDUTIL
+	help
+	  Add target_loads sysfs attr in cpufreq schedutil governor.
+#endif
+
 comment "CPU frequency scaling drivers"
 
 config CPUFREQ_DT
@@ -226,6 +264,15 @@ config CPUFREQ_DT_PLATDEV
 	  supported platforms.
 
 	  If in doubt, say N.
+
+config CPUFREQ_DUMMY
+	tristate "Dummy CPU frequency driver"
+	help
+	  This option adds a generic dummy CPUfreq driver, which sets a fake
+	  2-frequency table when initializing each policy and otherwise does
+	  nothing.
+
+	  If in doubt, say N
 
 if X86
 source "drivers/cpufreq/Kconfig.x86"

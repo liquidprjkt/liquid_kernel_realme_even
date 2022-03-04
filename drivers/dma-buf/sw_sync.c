@@ -84,7 +84,7 @@ static inline struct sync_pt *dma_fence_to_sync_pt(struct dma_fence *fence)
  * Creates a new sync_timeline. Returns the sync_timeline object or NULL in
  * case of error.
  */
-static struct sync_timeline *sync_timeline_create(const char *name)
+struct sync_timeline *sync_timeline_create(const char *name)
 {
 	struct sync_timeline *obj;
 
@@ -141,14 +141,17 @@ static void timeline_fence_release(struct dma_fence *fence)
 {
 	struct sync_pt *pt = dma_fence_to_sync_pt(fence);
 	struct sync_timeline *parent = dma_fence_parent(fence);
-	unsigned long flags;
 
-	spin_lock_irqsave(fence->lock, flags);
 	if (!list_empty(&pt->link)) {
-		list_del(&pt->link);
-		rb_erase(&pt->node, &parent->pt_tree);
+		unsigned long flags;
+
+		spin_lock_irqsave(fence->lock, flags);
+		if (!list_empty(&pt->link)) {
+			list_del(&pt->link);
+			rb_erase(&pt->node, &parent->pt_tree);
+		}
+		spin_unlock_irqrestore(fence->lock, flags);
 	}
-	spin_unlock_irqrestore(fence->lock, flags);
 
 	sync_timeline_put(parent);
 	dma_fence_free(fence);
@@ -164,6 +167,13 @@ static bool timeline_fence_signaled(struct dma_fence *fence)
 static bool timeline_fence_enable_signaling(struct dma_fence *fence)
 {
 	return true;
+}
+
+static void timeline_fence_disable_signaling(struct dma_fence *fence)
+{
+	struct sync_pt *pt = dma_fence_to_sync_pt(fence);
+
+	list_del_init(&pt->link);
 }
 
 static void timeline_fence_value_str(struct dma_fence *fence,
@@ -184,6 +194,7 @@ static const struct dma_fence_ops timeline_fence_ops = {
 	.get_driver_name = timeline_fence_get_driver_name,
 	.get_timeline_name = timeline_fence_get_timeline_name,
 	.enable_signaling = timeline_fence_enable_signaling,
+	.disable_signaling = timeline_fence_disable_signaling,
 	.signaled = timeline_fence_signaled,
 	.wait = dma_fence_default_wait,
 	.release = timeline_fence_release,
@@ -272,8 +283,7 @@ static struct sync_pt *sync_pt_create(struct sync_timeline *obj,
 				p = &parent->rb_left;
 			} else {
 				if (dma_fence_get_rcu(&other->base)) {
-					sync_timeline_put(obj);
-					kfree(pt);
+					dma_fence_put(&pt->base);
 					pt = other;
 					goto unlock;
 				}

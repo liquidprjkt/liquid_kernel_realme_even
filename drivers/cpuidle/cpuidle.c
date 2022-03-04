@@ -22,6 +22,9 @@
 #include <linux/module.h>
 #include <linux/suspend.h>
 #include <linux/tick.h>
+#ifdef CONFIG_OPLUS_FEATURE_MIDAS
+#include <linux/cpufreq.h>
+#endif
 #include <trace/events/power.h>
 
 #include "cpuidle.h"
@@ -212,21 +215,27 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	}
 
 	/* Take note of the planned idle state. */
-	sched_idle_set_state(target_state);
+	sched_idle_set_state(target_state, index);
 
 	trace_cpu_idle_rcuidle(index, dev->cpu);
 	time_start = ns_to_ktime(local_clock());
 
+#ifdef CONFIG_OPLUS_FEATURE_MIDAS
+	cpufreq_stats_idle_hook(dev->cpu, 1);
+#endif
 	stop_critical_timings();
 	entered_state = target_state->enter(dev, drv, index);
 	start_critical_timings();
+#ifdef CONFIG_OPLUS_FEATURE_MIDAS
+	cpufreq_stats_idle_hook(dev->cpu, 0);
+#endif
 
 	sched_clock_idle_wakeup_event();
 	time_end = ns_to_ktime(local_clock());
 	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, dev->cpu);
 
 	/* The cpu is no longer idle or about to enter idle. */
-	sched_idle_set_state(NULL);
+	sched_idle_set_state(NULL, -1);
 
 	if (broadcast) {
 		if (WARN_ON_ONCE(!irqs_disabled()))
@@ -263,12 +272,18 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
  *
  * @drv: the cpuidle driver
  * @dev: the cpuidle device
+ * @stop_tick: indication on whether or not to stop the tick
  *
  * Returns the index of the idle state.  The return value must not be negative.
+ *
+ * The memory location pointed to by @stop_tick is expected to be written the
+ * 'false' boolean value if the scheduler tick should not be stopped before
+ * entering the returned state.
  */
-int cpuidle_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+int cpuidle_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+		   bool *stop_tick)
 {
-	return cpuidle_curr_governor->select(drv, dev);
+	return cpuidle_curr_governor->select(drv, dev, stop_tick);
 }
 
 /**

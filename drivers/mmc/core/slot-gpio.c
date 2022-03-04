@@ -19,7 +19,7 @@
 #include <linux/slab.h>
 
 #include "slot-gpio.h"
-
+#include <soc/oppo/oppo_project.h>
 struct mmc_gpio {
 	struct gpio_desc *ro_gpio;
 	struct gpio_desc *cd_gpio;
@@ -29,12 +29,27 @@ struct mmc_gpio {
 	char *ro_label;
 	char cd_label[0];
 };
-
+//Xianfeng.liu@ODM_WT.BSP.Storage.Emmc, 2020/01/07, Modify for Sdcard
+extern unsigned int pmic_config_interface_nolock(unsigned int RegNum, unsigned int val,
+                                                 unsigned int MASK, unsigned int SHIFT);
+extern unsigned int get_project(void);
 static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 {
 	/* Schedule a card detection after a debounce timeout */
 	struct mmc_host *host = dev_id;
-
+        //Haiqing.Liu@ODM_WT.BSP.Storage.Emmc, 2020/03/27, Modify for Sdcard
+        int project_id = get_project();
+        if((project_id == 20761) || (project_id == 20762)
+           || (project_id == 20764) || (project_id == 20767)
+           || (project_id == 20766) || (project_id == 0x2167A)
+           || (project_id == 0x2167B) || (project_id == 0x2167C)
+           || (project_id == 0x2167D) || (project_id == 0x216AF)
+           || (project_id == 0x216B0) || (project_id == 0x216B1))
+        {
+                pmic_config_interface_nolock(0x1CD8, 0x0, 0x1, 0x0);
+                pmic_config_interface_nolock(0x1cc6,0x1,0x1,0);
+                pmic_config_interface_nolock(0x1cc4,0x0,0x1,0);
+        }
 	host->trigger_card_event = true;
 	mmc_detect_change(host, msecs_to_jiffies(200));
 
@@ -145,6 +160,8 @@ void mmc_gpiod_request_cd_irq(struct mmc_host *host)
 			ctx->cd_label, host);
 		if (ret < 0)
 			irq = ret;
+		else
+			enable_irq_wake(irq);
 	}
 
 	host->slot.cd_irq = irq;

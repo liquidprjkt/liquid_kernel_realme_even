@@ -1644,7 +1644,7 @@ MODULE_PARM_DESC(lockless_register_fb,
 static int do_register_framebuffer(struct fb_info *fb_info)
 {
 	int i, ret;
-	struct fb_event event;
+	struct fb_event event = {NULL,NULL};
 	struct fb_videomode mode;
 
 	if (fb_check_foreignness(fb_info))

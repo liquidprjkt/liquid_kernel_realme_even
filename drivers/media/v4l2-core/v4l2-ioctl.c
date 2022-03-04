@@ -1285,7 +1285,81 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_JPGL:		descr = "JPEG Lite"; break;
 		case V4L2_PIX_FMT_SE401:	descr = "GSPCA SE401"; break;
 		case V4L2_PIX_FMT_S5C_UYVY_JPG:	descr = "S5C73MX interleaved UYVY/JPEG"; break;
-		case V4L2_PIX_FMT_MT21C:	descr = "Mediatek Compressed Format"; break;
+		case V4L2_PIX_FMT_DIVX:
+			descr = "DIVX"; break;
+		case V4L2_PIX_FMT_DIVX3:
+			descr = "DIVX3"; break;
+		case V4L2_PIX_FMT_DIVX4:
+			descr = "DIVX4"; break;
+		case V4L2_PIX_FMT_DIVX5:
+			descr = "DIVX5"; break;
+		case V4L2_PIX_FMT_DIVX6:
+			descr = "DIVX6"; break;
+		case V4L2_PIX_FMT_H265:
+			descr = "H.265"; break;
+		case V4L2_PIX_FMT_HEIF:
+			descr = "HEIF"; break;
+		case V4L2_PIX_FMT_S263:
+			descr = "S.263"; break;
+		case V4L2_PIX_FMT_WMV1:
+			descr = "WMV1"; break;
+		case V4L2_PIX_FMT_WMV2:
+			descr = "WMV2"; break;
+		case V4L2_PIX_FMT_WMV3:
+			descr = "WMV3"; break;
+		case V4L2_PIX_FMT_WVC1:
+			descr = "WVC1"; break;
+		case V4L2_PIX_FMT_WMVA:
+			descr = "WMVA"; break;
+		case V4L2_PIX_FMT_RV30:
+			descr = "RealVideo 8"; break;
+		case V4L2_PIX_FMT_RV40:
+			descr = "RealVideo 9/10"; break;
+		case V4L2_PIX_FMT_AV1:
+			descr = "AV1"; break;
+		case V4L2_PIX_FMT_MT10S:
+			descr = "MTK 10-bit compressed single"; break;
+		case V4L2_PIX_FMT_MT10:
+			descr = "MTK 10-bit compressed"; break;
+		case V4L2_PIX_FMT_P010S:
+			descr = "10-bit P010 LSB 6-bit single"; break;
+		case V4L2_PIX_FMT_P010M:
+			descr = "10-bit P010 LSB 6-bit"; break;
+		case V4L2_PIX_FMT_NV12_AFBC:
+			descr = "AFBC NV12"; break;
+		case V4L2_PIX_FMT_NV12_10B_AFBC:
+			descr = "10-bit AFBC NV12"; break;
+		case V4L2_PIX_FMT_RGB32_AFBC:
+			descr = "32-bit AFBC A/XRGB 8-8-8-8"; break;
+		case V4L2_PIX_FMT_BGR32_AFBC:
+			descr = "32-bit AFBC A/XBGR 8-8-8-8"; break;
+		case V4L2_PIX_FMT_RGBA1010102_AFBC:
+			descr = "10-bit AFBC RGB 2-bit for A"; break;
+		case V4L2_PIX_FMT_BGRA1010102_AFBC:
+			descr = "10-bit AFBC BGR 2-bit for A"; break;
+		case V4L2_PIX_FMT_ARGB1010102:
+		case V4L2_PIX_FMT_ABGR1010102:
+		case V4L2_PIX_FMT_RGBA1010102:
+		case V4L2_PIX_FMT_BGRA1010102:
+			descr = "10-bit for RGB, 2-bit for A"; break;
+		case V4L2_PIX_FMT_MT21C:
+		case V4L2_PIX_FMT_MT21:
+		case V4L2_PIX_FMT_MT2110T:
+		case V4L2_PIX_FMT_MT2110R:
+		case V4L2_PIX_FMT_MT21C10T:
+		case V4L2_PIX_FMT_MT21C10R:
+		case V4L2_PIX_FMT_MT21CS:
+		case V4L2_PIX_FMT_MT21S:
+		case V4L2_PIX_FMT_MT21S10T:
+		case V4L2_PIX_FMT_MT21S10R:
+		case V4L2_PIX_FMT_MT21CS10T:
+		case V4L2_PIX_FMT_MT21CS10R:
+		case V4L2_PIX_FMT_MT21CSA:
+		case V4L2_PIX_FMT_MT21S10TJ:
+		case V4L2_PIX_FMT_MT21S10RJ:
+		case V4L2_PIX_FMT_MT21CS10TJ:
+		case V4L2_PIX_FMT_MT21CS10RJ:
+			descr = "Mediatek Video Block Format"; break;
 		default:
 			WARN(1, "Unknown pixelformat 0x%08x\n", fmt->pixelformat);
 			if (fmt->description[0])
@@ -2500,11 +2574,8 @@ struct v4l2_ioctl_info {
 	unsigned int ioctl;
 	u32 flags;
 	const char * const name;
-	union {
-		u32 offset;
-		int (*func)(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *p);
-	} u;
+	int (*func)(const struct v4l2_ioctl_ops *ops, struct file *file,
+		    void *fh, void *p);
 	void (*debug)(const void *arg, bool write_only);
 };
 
@@ -2512,27 +2583,23 @@ struct v4l2_ioctl_info {
 #define INFO_FL_PRIO		(1 << 0)
 /* This control can be valid if the filehandle passes a control handler. */
 #define INFO_FL_CTRL		(1 << 1)
-/* This is a standard ioctl, no need for special code */
-#define INFO_FL_STD		(1 << 2)
 /* This is ioctl has its own function */
-#define INFO_FL_FUNC		(1 << 3)
+#define INFO_FL_FUNC		(1 << 2)
 /* Queuing ioctl */
-#define INFO_FL_QUEUE		(1 << 4)
+#define INFO_FL_QUEUE		(1 << 3)
 /* Always copy back result, even on error */
-#define INFO_FL_ALWAYS_COPY	(1 << 5)
+#define INFO_FL_ALWAYS_COPY	(1 << 4)
 /* Zero struct from after the field to the end */
 #define INFO_FL_CLEAR(v4l2_struct, field)			\
 	((offsetof(struct v4l2_struct, field) +			\
 	  sizeof(((struct v4l2_struct *)0)->field)) << 16)
 #define INFO_FL_CLEAR_MASK 	(_IOC_SIZEMASK << 16)
 
-#define IOCTL_INFO_STD(_ioctl, _vidioc, _debug, _flags)			\
-	[_IOC_NR(_ioctl)] = {						\
-		.ioctl = _ioctl,					\
-		.flags = _flags | INFO_FL_STD,				\
-		.name = #_ioctl,					\
-		.u.offset = offsetof(struct v4l2_ioctl_ops, _vidioc),	\
-		.debug = _debug,					\
+#define DEFINE_IOCTL_STD_FNC(_vidioc) \
+	static int __v4l_ ## _vidioc ## _fnc(				\
+			const struct v4l2_ioctl_ops *ops, 		\
+			struct file *file, void *fh, void *p) {		\
+		return ops->_vidioc(file, fh, p); 			\
 	}
 
 #define IOCTL_INFO_FNC(_ioctl, _func, _debug, _flags)			\
@@ -2540,9 +2607,41 @@ struct v4l2_ioctl_info {
 		.ioctl = _ioctl,					\
 		.flags = _flags | INFO_FL_FUNC,				\
 		.name = #_ioctl,					\
-		.u.func = _func,					\
+		.func = _func,						\
 		.debug = _debug,					\
 	}
+
+#define IOCTL_INFO_STD(_ioctl, _vidioc, _debug, _flags)	\
+	IOCTL_INFO_FNC(_ioctl, __v4l_ ## _vidioc ## _fnc, _debug, _flags)
+
+DEFINE_IOCTL_STD_FNC(vidioc_g_fbuf)
+DEFINE_IOCTL_STD_FNC(vidioc_s_fbuf)
+DEFINE_IOCTL_STD_FNC(vidioc_expbuf)
+DEFINE_IOCTL_STD_FNC(vidioc_g_std)
+DEFINE_IOCTL_STD_FNC(vidioc_g_audio)
+DEFINE_IOCTL_STD_FNC(vidioc_s_audio)
+DEFINE_IOCTL_STD_FNC(vidioc_g_input)
+DEFINE_IOCTL_STD_FNC(vidioc_g_edid)
+DEFINE_IOCTL_STD_FNC(vidioc_s_edid)
+DEFINE_IOCTL_STD_FNC(vidioc_g_output)
+DEFINE_IOCTL_STD_FNC(vidioc_g_audout)
+DEFINE_IOCTL_STD_FNC(vidioc_s_audout)
+DEFINE_IOCTL_STD_FNC(vidioc_g_jpegcomp)
+DEFINE_IOCTL_STD_FNC(vidioc_s_jpegcomp)
+DEFINE_IOCTL_STD_FNC(vidioc_enumaudio)
+DEFINE_IOCTL_STD_FNC(vidioc_enumaudout)
+DEFINE_IOCTL_STD_FNC(vidioc_enum_framesizes)
+DEFINE_IOCTL_STD_FNC(vidioc_enum_frameintervals)
+DEFINE_IOCTL_STD_FNC(vidioc_g_enc_index)
+DEFINE_IOCTL_STD_FNC(vidioc_encoder_cmd)
+DEFINE_IOCTL_STD_FNC(vidioc_try_encoder_cmd)
+DEFINE_IOCTL_STD_FNC(vidioc_decoder_cmd)
+DEFINE_IOCTL_STD_FNC(vidioc_try_decoder_cmd)
+DEFINE_IOCTL_STD_FNC(vidioc_s_dv_timings)
+DEFINE_IOCTL_STD_FNC(vidioc_g_dv_timings)
+DEFINE_IOCTL_STD_FNC(vidioc_enum_dv_timings)
+DEFINE_IOCTL_STD_FNC(vidioc_query_dv_timings)
+DEFINE_IOCTL_STD_FNC(vidioc_dv_timings_cap)
 
 static struct v4l2_ioctl_info v4l2_ioctls[] = {
 	IOCTL_INFO_FNC(VIDIOC_QUERYCAP, v4l_querycap, v4l_print_querycap, 0),
@@ -2728,14 +2827,8 @@ static long __video_do_ioctl(struct file *file,
 	}
 
 	write_only = _IOC_DIR(cmd) == _IOC_WRITE;
-	if (info->flags & INFO_FL_STD) {
-		typedef int (*vidioc_op)(struct file *file, void *fh, void *p);
-		const void *p = vfd->ioctl_ops;
-		const vidioc_op *vidioc = p + info->u.offset;
-
-		ret = (*vidioc)(file, fh, arg);
-	} else if (info->flags & INFO_FL_FUNC) {
-		ret = info->u.func(ops, file, fh, arg);
+	if (info->flags & INFO_FL_FUNC) {
+		ret = info->func(ops, file, fh, arg);
 	} else if (!ops->vidioc_default) {
 		ret = -ENOTTY;
 	} else {

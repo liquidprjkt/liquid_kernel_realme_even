@@ -23,7 +23,10 @@
 #include <linux/hugetlb.h>
 #include <linux/memcontrol.h>
 #include <linux/mm_inline.h>
-
+#if defined(OPLUS_FEATURE_VIRTUAL_RESERVE_MEMORY) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+//Peifeng.Li@PSW.Kernel.BSP.Memory, 2020/04/22,virtual reserve memory
+#include <linux/resmap_account.h>
+#endif
 #include "internal.h"
 
 bool can_do_mlock(void)
@@ -439,7 +442,9 @@ static unsigned long __munlock_pagevec_fill(struct pagevec *pvec,
 void munlock_vma_pages_range(struct vm_area_struct *vma,
 			     unsigned long start, unsigned long end)
 {
-	vma->vm_flags &= VM_LOCKED_CLEAR_MASK;
+	vm_write_begin(vma);
+	WRITE_ONCE(vma->vm_flags, vma->vm_flags & VM_LOCKED_CLEAR_MASK);
+	vm_write_end(vma);
 
 	while (start < end) {
 		struct page *page;
@@ -528,7 +533,7 @@ static int mlock_fixup(struct vm_area_struct *vma, struct vm_area_struct **prev,
 	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
 	*prev = vma_merge(mm, *prev, start, end, newflags, vma->anon_vma,
 			  vma->vm_file, pgoff, vma_policy(vma),
-			  vma->vm_userfaultfd_ctx);
+			  vma->vm_userfaultfd_ctx, vma_get_anon_name(vma));
 	if (*prev) {
 		vma = *prev;
 		goto success;
@@ -562,10 +567,11 @@ success:
 	 * It's okay if try_to_unmap_one unmaps a page just after we
 	 * set VM_LOCKED, populate_vma_page_range will bring it back.
 	 */
-
-	if (lock)
-		vma->vm_flags = newflags;
-	else
+	if (lock) {
+		vm_write_begin(vma);
+		WRITE_ONCE(vma->vm_flags, newflags);
+		vm_write_end(vma);
+	} else
 		munlock_vma_pages_range(vma, start, end);
 
 out:
@@ -639,8 +645,20 @@ static unsigned long count_mm_mlocked_page_nr(struct mm_struct *mm,
 		mm = current->mm;
 
 	vma = find_vma(mm, start);
+#if defined(OPLUS_FEATURE_VIRTUAL_RESERVE_MEMORY) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+	if (vma == NULL) {
+		/* Kui.Zhang@TEC.Kernel.Performance, 2019/03/13
+		 * deal with the reserved area
+		 */
+		if (start_is_backed_addr(mm, start))
+			vma = mm->reserve_mmap;
+		else
+			vma = mm->mmap;
+	}
+#else
 	if (vma == NULL)
 		vma = mm->mmap;
+#endif
 
 	for (; vma ; vma = vma->vm_next) {
 		if (start >= vma->vm_end)
@@ -666,6 +684,8 @@ static __must_check int do_mlock(unsigned long start, size_t len, vm_flags_t fla
 	unsigned long locked;
 	unsigned long lock_limit;
 	int error = -ENOMEM;
+
+	start = untagged_addr(start);
 
 	if (!can_do_mlock())
 		return -EPERM;
@@ -730,6 +750,8 @@ SYSCALL_DEFINE2(munlock, unsigned long, start, size_t, len)
 {
 	int ret;
 
+	start = untagged_addr(start);
+
 	len = PAGE_ALIGN(len + (offset_in_page(start)));
 	start &= PAGE_MASK;
 
@@ -783,6 +805,23 @@ static int apply_mlockall_flags(int flags)
 		mlock_fixup(vma, &prev, vma->vm_start, vma->vm_end, newflags);
 		cond_resched_rcu_qs();
 	}
+
+#if defined(OPLUS_FEATURE_VIRTUAL_RESERVE_MEMORY) && defined(CONFIG_VIRTUAL_RESERVE_MEMORY)
+	/* Kui.Zhang@TEC.Kernel.Performance, 2019/03/13
+	 * deal with the reserved area
+	 */
+	for (vma = current->mm->reserve_mmap; vma ; vma = prev->vm_next) {
+		vm_flags_t newflags;
+
+		newflags = vma->vm_flags & VM_LOCKED_CLEAR_MASK;
+		newflags |= to_add;
+
+		/* Ignore errors */
+		mlock_fixup(vma, &prev, vma->vm_start, vma->vm_end, newflags);
+		cond_resched();
+	}
+#endif
+
 out:
 	return 0;
 }

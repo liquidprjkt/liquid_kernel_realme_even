@@ -22,6 +22,7 @@
 #include <linux/writeback.h>
 #include <linux/frontswap.h>
 #include <linux/blkdev.h>
+#include <linux/psi.h>
 #include <linux/uio.h>
 #include <linux/sched/task.h>
 #include <asm/pgtable.h>
@@ -302,6 +303,9 @@ int __swap_writepage(struct page *page, struct writeback_control *wbc,
 		unlock_page(page);
 		ret = mapping->a_ops->direct_IO(&kiocb, &from);
 		if (ret == PAGE_SIZE) {
+#ifdef CONFIG_MTK_MLOG
+			current->swap_out++;
+#endif
 			count_vm_event(PSWPOUT);
 			ret = 0;
 		} else {
@@ -326,6 +330,9 @@ int __swap_writepage(struct page *page, struct writeback_control *wbc,
 
 	ret = bdev_write_page(sis->bdev, swap_page_sector(page), page, wbc);
 	if (!ret) {
+#ifdef CONFIG_MTK_MLOG
+		current->swap_out++;
+#endif
 		count_swpout_vm_event(page);
 		return 0;
 	}
@@ -339,6 +346,9 @@ int __swap_writepage(struct page *page, struct writeback_control *wbc,
 		goto out;
 	}
 	bio->bi_opf = REQ_OP_WRITE | wbc_to_write_flags(wbc);
+#ifdef CONFIG_MTK_MLOG
+	current->swap_out++;
+#endif
 	count_swpout_vm_event(page);
 	set_page_writeback(page);
 	unlock_page(page);
@@ -354,10 +364,19 @@ int swap_readpage(struct page *page, bool do_poll)
 	struct swap_info_struct *sis = page_swap_info(page);
 	blk_qc_t qc;
 	struct gendisk *disk;
+	unsigned long pflags;
 
 	VM_BUG_ON_PAGE(!PageSwapCache(page), page);
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	VM_BUG_ON_PAGE(PageUptodate(page), page);
+
+	/*
+	 * Count submission time as memory stall. When the device is congested,
+	 * or the submitting cgroup IO-throttled, submission can be a
+	 * significant part of overall IO time.
+	 */
+	psi_memstall_enter(&pflags);
+
 	if (frontswap_load(page) == 0) {
 		SetPageUptodate(page);
 		unlock_page(page);
@@ -369,9 +388,13 @@ int swap_readpage(struct page *page, bool do_poll)
 		struct address_space *mapping = swap_file->f_mapping;
 
 		ret = mapping->a_ops->readpage(swap_file, page);
-		if (!ret)
+		if (!ret) {
+#ifdef CONFIG_MTK_MLOG
+			current->swap_in++;
+#endif
 			count_vm_event(PSWPIN);
-		return ret;
+		}
+		goto out;
 	}
 
 	ret = bdev_read_page(sis->bdev, swap_page_sector(page), page);
@@ -380,9 +403,11 @@ int swap_readpage(struct page *page, bool do_poll)
 			swap_slot_free_notify(page);
 			unlock_page(page);
 		}
-
+#ifdef CONFIG_MTK_MLOG
+		current->swap_in++;
+#endif
 		count_vm_event(PSWPIN);
-		return 0;
+		goto out;
 	}
 
 	ret = 0;
@@ -400,6 +425,9 @@ int swap_readpage(struct page *page, bool do_poll)
 	get_task_struct(current);
 	bio->bi_private = current;
 	bio_set_op_attrs(bio, REQ_OP_READ, 0);
+#ifdef CONFIG_MTK_MLOG
+	current->swap_in++;
+#endif
 	count_vm_event(PSWPIN);
 	bio_get(bio);
 	qc = submit_bio(bio);
@@ -415,6 +443,7 @@ int swap_readpage(struct page *page, bool do_poll)
 	bio_put(bio);
 
 out:
+	psi_memstall_leave(&pflags);
 	return ret;
 }
 

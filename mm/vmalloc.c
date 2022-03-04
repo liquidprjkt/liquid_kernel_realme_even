@@ -38,6 +38,11 @@
 #include <asm/shmparam.h>
 
 #include "internal.h"
+#if defined(OPLUS_FEATURE_MEMLEAK_DETECT) && defined(CONFIG_VMALLOC_DEBUG)
+/* Kui.Zhang@BSP.Kernel.MM, 2020-02-26, used for vmalloc_debug */
+static unsigned int save_vmalloc_stack(unsigned long flags, struct vmap_area *va);
+static void dec_vmalloc_stat(struct vmap_area *va);
+#endif
 
 struct vfree_deferred {
 	struct llist_head list;
@@ -340,6 +345,13 @@ static unsigned long cached_vstart;
 static unsigned long cached_align;
 
 static unsigned long vmap_area_pcpu_hole;
+
+static atomic_long_t nr_vmalloc_pages;
+
+unsigned long vmalloc_nr_pages(void)
+{
+	return atomic_long_read(&nr_vmalloc_pages);
+}
 
 static struct vmap_area *__find_vmap_area(unsigned long addr)
 {
@@ -1367,11 +1379,19 @@ EXPORT_SYMBOL_GPL(map_vm_area);
 static void setup_vmalloc_vm(struct vm_struct *vm, struct vmap_area *va,
 			      unsigned long flags, const void *caller)
 {
+#if defined(OPLUS_FEATURE_MEMLEAK_DETECT) && defined(CONFIG_VMALLOC_DEBUG)
+	/* Kui.Zhang@BSP.Kernel.MM, 2020-02-26, save vmalloc called stack. */
+	unsigned int handle = save_vmalloc_stack(flags, va);
+#endif
 	spin_lock(&vmap_area_lock);
 	vm->flags = flags;
 	vm->addr = (void *)va->va_start;
 	vm->size = va->va_end - va->va_start;
 	vm->caller = caller;
+#if defined(OPLUS_FEATURE_MEMLEAK_DETECT) && defined(CONFIG_VMALLOC_DEBUG)
+	/* Kui.Zhang@BSP.Kernel.MM, 2020-02-26, save stach hash*/
+	vm->hash = handle;
+#endif
 	va->vm = vm;
 	va->flags |= VM_VM_AREA;
 	spin_unlock(&vmap_area_lock);
@@ -1498,6 +1518,9 @@ struct vm_struct *remove_vm_area(const void *addr)
 	if (va && va->flags & VM_VM_AREA) {
 		struct vm_struct *vm = va->vm;
 
+#if defined(OPLUS_FEATURE_MEMLEAK_DETECT) && defined(CONFIG_VMALLOC_DEBUG)
+		dec_vmalloc_stat(va);
+#endif
 		spin_lock(&vmap_area_lock);
 		va->vm = NULL;
 		va->flags &= ~VM_VM_AREA;
@@ -1544,6 +1567,7 @@ static void __vunmap(const void *addr, int deallocate_pages)
 			BUG_ON(!page);
 			__free_pages(page, 0);
 		}
+		atomic_long_sub(area->nr_pages, &nr_vmalloc_pages);
 
 		kvfree(area->pages);
 	}
@@ -1711,12 +1735,14 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 		if (unlikely(!page)) {
 			/* Successfully allocated i pages, free them in __vunmap() */
 			area->nr_pages = i;
+			atomic_long_add(area->nr_pages, &nr_vmalloc_pages);
 			goto fail;
 		}
 		area->pages[i] = page;
 		if (gfpflags_allow_blocking(gfp_mask|highmem_mask))
 			cond_resched();
 	}
+	atomic_long_add(area->nr_pages, &nr_vmalloc_pages);
 
 	if (map_vm_area(area, prot, pages))
 		goto fail;
@@ -2744,7 +2770,11 @@ static int s_show(struct seq_file *m, void *p)
 	seq_printf(m, "0x%pK-0x%pK %7ld",
 		v->addr, v->addr + v->size, v->size);
 
-	if (v->caller)
+#ifdef OPLUS_FEATURE_PERFORMANCE //modify for android.bg get pss too slow
+    if (v->caller && (strcmp(current->comm, "android.bg") != 0))
+#else
+    if (v->caller)
+#endif
 		seq_printf(m, " %pS", v->caller);
 
 	if (v->nr_pages)
@@ -2805,3 +2835,16 @@ module_init(proc_vmalloc_init);
 
 #endif
 
+#ifdef CONFIG_VMALLOC_DEBUG
+#ifdef OPLUS_FEATURE_MEMLEAK_DETECT
+/* Kui.Zhang@BSP.Kernel.MM, 2020-02-26, vmalloc debug used.*/
+#include "malloc_track/vmalloc_track.c"
+#else
+int __init __weak create_vmalloc_debug(struct proc_dir_entry *parent)
+{
+	pr_warn("OPLUS_FEATURE_MEMLEAK_DETECT is off.\n");
+	return 0;
+}
+EXPORT_SYMBOL(create_vmalloc_debug);
+#endif
+#endif

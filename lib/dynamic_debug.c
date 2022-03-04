@@ -548,6 +548,146 @@ static char *dynamic_emit_prefix(const struct _ddebug *desc, char *buf)
 	return buf;
 }
 
+void __dynamic_pr_emerg(struct _ddebug *descriptor, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+	char buf[PREFIX_SIZE];
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	printk(KERN_EMERG "%s%pV", dynamic_emit_prefix(descriptor, buf), &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_pr_emerg);
+
+void __dynamic_pr_alert(struct _ddebug *descriptor, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+	char buf[PREFIX_SIZE];
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	printk(KERN_ALERT "%s%pV", dynamic_emit_prefix(descriptor, buf), &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_pr_alert);
+
+void __dynamic_pr_crit(struct _ddebug *descriptor, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+	char buf[PREFIX_SIZE];
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	printk(KERN_CRIT "%s%pV", dynamic_emit_prefix(descriptor, buf), &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_pr_crit);
+
+void __dynamic_pr_err(struct _ddebug *descriptor, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+	char buf[PREFIX_SIZE];
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	printk(KERN_ERR "%s%pV", dynamic_emit_prefix(descriptor, buf), &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_pr_err);
+
+void __dynamic_pr_warn(struct _ddebug *descriptor, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+	char buf[PREFIX_SIZE];
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	printk(KERN_WARNING "%s%pV", dynamic_emit_prefix(descriptor, buf), &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_pr_warn);
+
+void __dynamic_pr_notice(struct _ddebug *descriptor, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+	char buf[PREFIX_SIZE];
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	printk(KERN_NOTICE "%s%pV", dynamic_emit_prefix(descriptor, buf), &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_pr_notice);
+
+void __dynamic_pr_info(struct _ddebug *descriptor, const char *fmt, ...)
+{
+	va_list args;
+	struct va_format vaf;
+	char buf[PREFIX_SIZE];
+
+	BUG_ON(!descriptor);
+	BUG_ON(!fmt);
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	printk(KERN_INFO "%s%pV", dynamic_emit_prefix(descriptor, buf), &vaf);
+
+	va_end(args);
+}
+EXPORT_SYMBOL(__dynamic_pr_info);
+
 void __dynamic_pr_debug(struct _ddebug *descriptor, const char *fmt, ...)
 {
 	va_list args;
@@ -954,22 +1094,26 @@ static void ddebug_remove_all_tables(void)
 
 static __initdata int ddebug_init_success;
 
-static int __init dynamic_debug_init_debugfs(void)
+static int __init dynamic_debug_init_control(void)
 {
-	struct dentry *dir, *file;
+	struct proc_dir_entry *procfs_dir;
+	struct dentry *debugfs_dir;
 
 	if (!ddebug_init_success)
 		return -ENODEV;
 
-	dir = debugfs_create_dir("dynamic_debug", NULL);
-	if (!dir)
-		return -ENOMEM;
-	file = debugfs_create_file("control", 0644, dir, NULL,
-					&ddebug_proc_fops);
-	if (!file) {
-		debugfs_remove(dir);
-		return -ENOMEM;
+	/* Create the control file in debugfs if it is enabled */
+	if (debugfs_initialized()) {
+		debugfs_dir = debugfs_create_dir("dynamic_debug", NULL);
+		debugfs_create_file("control", 0644, debugfs_dir, NULL,
+				    &ddebug_proc_fops);
 	}
+
+	/* Also create the control file in procfs */
+	procfs_dir = proc_mkdir("dynamic_debug", NULL);
+	if (procfs_dir)
+		proc_create("control", 0644, procfs_dir, &ddebug_proc_fops);
+
 	return 0;
 }
 
@@ -1046,4 +1190,4 @@ out_err:
 early_initcall(dynamic_debug_init);
 
 /* Debugfs setup must be done later */
-fs_initcall(dynamic_debug_init_debugfs);
+fs_initcall(dynamic_debug_init_control);

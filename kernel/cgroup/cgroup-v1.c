@@ -13,8 +13,15 @@
 #include <linux/delayacct.h>
 #include <linux/pid_namespace.h>
 #include <linux/cgroupstats.h>
+#ifdef OPLUS_FEATURE_HANS_FREEZE
+// Kun.Zhou@ANDROID.RESCONTROL, 2019/09/23, add for hans freeze manager
+#include <linux/freezer.h>
+#endif /*OPLUS_FEATURE_HANS_FREEZE*/
 
 #include <trace/events/cgroup.h>
+#ifdef CONFIG_MTK_TASK_TURBO
+#include <mt-plat/turbo_common.h>
+#endif
 
 /*
  * pidlists linger the following amount before being destroyed.  The goal
@@ -382,6 +389,20 @@ static int pidlist_array_load(struct cgroup *cgrp, enum cgroup_filetype type,
 	while ((tsk = css_task_iter_next(&it))) {
 		if (unlikely(n == length))
 			break;
+
+		/* mtk: don't get pid when proc/task killed */
+        #ifdef OPLUS_FEATURE_HANS_FREEZE
+		// Kun.Zhou@ANDROID.RESCONTROL, 2019/09/23, add for hans freeze manager
+		if (((SIGNAL_GROUP_EXIT & tsk->signal->flags) || (PF_EXITING & tsk->flags))
+		    && !(freezing(tsk) || frozen(tsk)))
+			continue;
+		#else
+		if ((SIGNAL_GROUP_EXIT & tsk->signal->flags) ||
+			(PF_EXITING & tsk->flags))
+			continue;
+        #endif /*OPLUS_FEATURE_HANS_FREEZE*/
+
+
 		/* get tgid or pid for procs or tasks file respectively */
 		if (type == CGROUP_FILE_PROCS)
 			pid = task_tgid_vnr(tsk);
@@ -542,13 +563,18 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 	tcred = get_task_cred(task);
 	if (!uid_eq(cred->euid, GLOBAL_ROOT_UID) &&
 	    !uid_eq(cred->euid, tcred->uid) &&
-	    !uid_eq(cred->euid, tcred->suid))
+	    !uid_eq(cred->euid, tcred->suid) &&
+	    !ns_capable(tcred->user_ns, CAP_SYS_NICE))
 		ret = -EACCES;
 	put_cred(tcred);
 	if (ret)
 		goto out_finish;
 
 	ret = cgroup_attach_task(cgrp, task, threadgroup);
+#ifdef CONFIG_MTK_TASK_TURBO
+	if (!ret)
+		cgroup_set_turbo_task(task);
+#endif
 
 out_finish:
 	cgroup_procs_write_finish(task);

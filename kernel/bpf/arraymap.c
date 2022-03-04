@@ -19,6 +19,9 @@
 
 #include "map_in_map.h"
 
+#define ARRAY_CREATE_FLAG_MASK \
+	(BPF_F_NUMA_NODE | BPF_F_RDONLY | BPF_F_WRONLY)
+
 static void bpf_array_free_percpu(struct bpf_array *array)
 {
 	int i;
@@ -60,7 +63,8 @@ static struct bpf_map *array_map_alloc(union bpf_attr *attr)
 
 	/* check sanity of attributes */
 	if (attr->max_entries == 0 || attr->key_size != 4 ||
-	    attr->value_size == 0 || attr->map_flags & ~BPF_F_NUMA_NODE ||
+	    attr->value_size == 0 ||
+	    attr->map_flags & ~ARRAY_CREATE_FLAG_MASK ||
 	    (percpu && numa_node != NUMA_NO_NODE))
 		return ERR_PTR(-EINVAL);
 
@@ -260,10 +264,15 @@ static int array_map_update_elem(struct bpf_map *map, void *key, void *value,
 	if (array->map.map_type == BPF_MAP_TYPE_PERCPU_ARRAY)
 		memcpy(this_cpu_ptr(array->pptrs[index & array->index_mask]),
 		       value, map->value_size);
-	else
+	else  {
+		if (unlikely(sizeof(array->value) <
+			array->elem_size * (index & array->index_mask)))
+			return -EINVAL;
+
 		memcpy(array->value +
 		       array->elem_size * (index & array->index_mask),
 		       value, map->value_size);
+	}
 	return 0;
 }
 

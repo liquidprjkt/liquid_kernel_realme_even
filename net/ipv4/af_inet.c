@@ -121,7 +121,6 @@
 #endif
 #include <net/l3mdev.h>
 
-
 /* The inetsw table contains everything that inet_create needs to
  * build a new socket.
  */
@@ -303,8 +302,7 @@ lookup_protocol:
 	}
 
 	err = -EPERM;
-	if (sock->type == SOCK_RAW && !kern &&
-	    !ns_capable(net->user_ns, CAP_NET_RAW))
+	if (sock->type == SOCK_RAW && !kern && !capable(CAP_NET_RAW))
 		goto out_rcu_unlock;
 
 	sock->ops = answer->ops;
@@ -1315,10 +1313,10 @@ out:
 }
 EXPORT_SYMBOL(inet_gso_segment);
 
-struct sk_buff **inet_gro_receive(struct sk_buff **head, struct sk_buff *skb)
+struct sk_buff *inet_gro_receive(struct list_head *head, struct sk_buff *skb)
 {
 	const struct net_offload *ops;
-	struct sk_buff **pp = NULL;
+	struct sk_buff *pp = NULL;
 	struct sk_buff *p;
 	const struct iphdr *iph;
 	unsigned int hlen;
@@ -1356,7 +1354,7 @@ struct sk_buff **inet_gro_receive(struct sk_buff **head, struct sk_buff *skb)
 	flush = (u16)((ntohl(*(__be32 *)iph) ^ skb_gro_len(skb)) | (id & ~IP_DF));
 	id >>= 16;
 
-	for (p = *head; p; p = p->next) {
+	list_for_each_entry(p, head, list) {
 		struct iphdr *iph2;
 		u16 flush_id;
 
@@ -1436,8 +1434,8 @@ out:
 }
 EXPORT_SYMBOL(inet_gro_receive);
 
-static struct sk_buff **ipip_gro_receive(struct sk_buff **head,
-					 struct sk_buff *skb)
+static struct sk_buff *ipip_gro_receive(struct list_head *head,
+					struct sk_buff *skb)
 {
 	if (NAPI_GRO_CB(skb)->encap_mark) {
 		NAPI_GRO_CB(skb)->flush = 1;
@@ -1813,6 +1811,7 @@ fs_initcall(ipv4_offload_init);
 static struct packet_type ip_packet_type __read_mostly = {
 	.type = cpu_to_be16(ETH_P_IP),
 	.func = ip_rcv,
+	.list_func = ip_list_rcv,
 };
 
 static int __init inet_init(void)

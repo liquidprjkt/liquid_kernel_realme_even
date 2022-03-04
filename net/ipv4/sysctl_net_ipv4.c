@@ -29,7 +29,9 @@
 
 static int zero;
 static int one = 1;
+static int three = 3;
 static int four = 4;
+static int hundred = 100;
 static int thousand = 1000;
 static int gso_max_segs = GSO_MAX_SEGS;
 static int tcp_retr1_max = 255;
@@ -767,6 +769,16 @@ static struct ctl_table ipv4_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &one
 	},
+	#ifdef OPLUS_BUG_STABILITY
+	//ZhaoMengqingCONNECTIVITY.WIFI.INTERNET.1394484, 2019/04/02,add for: When find TCP SYN-ACK Timestamp value error, just do not use Timestamp
+	{
+		.procname	= "tcp_timestamps_control",
+		.data		= &sysctl_tcp_ts_control,
+		.maxlen		= sizeof(sysctl_tcp_ts_control),
+		.mode		= 0664,
+		.proc_handler	= proc_dointvec
+	},
+	#endif /* OPLUS_BUG_STABILITY */
 	{ }
 };
 
@@ -1167,6 +1179,25 @@ static struct ctl_table ipv4_net_table[] = {
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec
+	},
+	#ifdef OPLUS_BUG_STABILITY
+        //PengHao@CONNECTIVITY.WIFI.INTERNET.1854960,2019/03/30,add for disable tcp random timestamp,some networks limit tcp syn before login
+	{
+		.procname	= "tcp_random_timestamp",
+		.data		= &init_net.ipv4.sysctl_tcp_random_timestamp,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec
+	},
+	#endif /* OPLUS_BUG_STABILITY */
+	{
+		.procname       = "tcp_default_init_rwnd",
+		.data           = &init_net.ipv4.sysctl_tcp_default_init_rwnd,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1		= &three,
+		.extra2		= &hundred,
 	},
 	{ }
 };

@@ -61,7 +61,12 @@ config SECURITY_SELINUX_DISABLE
 config SECURITY_SELINUX_DEVELOP
 	bool "NSA SELinux Development Support"
 	depends on SECURITY_SELINUX
-	default y
+	#ifndef OPLUS_FEATURE_FORCE_SELINUX
+	#Haoran.Zhang@ANDROID.BUILD, 2020/01/10, modify for unset SECURITY_SELINUX_DEVELOP
+	#default y
+	#else OPLUS_FEATURE_FORCE_SELINUX
+	default n
+	#endif OPLUS_FEATURE_FORCE_SELINUX
 	help
 	  This enables the development support option of NSA SELinux,
 	  which is useful for experimenting with SELinux and developing
@@ -99,3 +104,15 @@ config SECURITY_SELINUX_CHECKREQPROT_VALUE
 	  via /selinux/checkreqprot if authorized by policy.
 
 	  If you are unsure how to answer this question, answer 0.
+
+config SECURITY_SELINUX_SIDTAB_HASH_BITS
+	int "NSA SELinux sidtab hashtable size"
+	depends on SECURITY_SELINUX
+	range 8 13
+	default 9
+	help
+	  This option sets the number of buckets used in the sidtab hashtable
+	  to 2^SECURITY_SELINUX_SIDTAB_HASH_BITS buckets. The number of hash
+	  collisions may be viewed at /sys/fs/selinux/ss/sidtab_hash_stats. If
+	  chain lengths are high (e.g. > 20) then selecting a higher value here
+	  will ensure that lookups times are short and stable.

@@ -1,3 +1,4 @@
+make --dry-run --keep-going --print-directory
 make: Entering directory '/home/gianp/kernel_realme_even'
  
 grep: .config: No such file or directory
@@ -38,12 +39,15 @@ scripts/kconfig/conf  --silentoldconfig Kconfig
 ***
 
 make[2]: *** [scripts/kconfig/Makefile:40: silentoldconfig] Error 1
+
 make[1]: *** [Makefile:583: silentoldconfig] Error 2
+
 make: *** No rule to make target 'include/config/auto.conf', needed by 'include/config/kernel.release'.
 
 :
 make -f ./scripts/Makefile.asm-generic \
             src=uapi/asm obj=arch/arm64/include/generated/uapi/asm
+ 
 echo '  WRAP    arch/arm64/include/generated/uapi/asm/errno.h'; echo "#include <asm-generic/errno.h>" >arch/arm64/include/generated/uapi/asm/errno.h
 echo '  WRAP    arch/arm64/include/generated/uapi/asm/ioctl.h'; echo "#include <asm-generic/ioctl.h>" >arch/arm64/include/generated/uapi/asm/ioctl.h
 echo '  WRAP    arch/arm64/include/generated/uapi/asm/ioctls.h'; echo "#include <asm-generic/ioctls.h>" >arch/arm64/include/generated/uapi/asm/ioctls.h
@@ -66,8 +70,8 @@ make -f ./scripts/Makefile.asm-generic \
             src=asm obj=arch/arm64/include/generated/asm
  
 echo '  WRAP    arch/arm64/include/generated/asm/bugs.h'; echo "#include <asm-generic/bugs.h>" >arch/arm64/include/generated/asm/bugs.h
-echo '  WRAP    arch/arm64/include/generated/asm/clkdev.h'; echo "#include <asm-generic/clkdev.h>" >arch/arm64/include/generated/asm/clkdev.h
  
+echo '  WRAP    arch/arm64/include/generated/asm/clkdev.h'; echo "#include <asm-generic/clkdev.h>" >arch/arm64/include/generated/asm/clkdev.h
 echo '  WRAP    arch/arm64/include/generated/asm/delay.h'; echo "#include <asm-generic/delay.h>" >arch/arm64/include/generated/asm/delay.h
 echo '  WRAP    arch/arm64/include/generated/asm/div64.h'; echo "#include <asm-generic/div64.h>" >arch/arm64/include/generated/asm/div64.h
 echo '  WRAP    arch/arm64/include/generated/asm/dma.h'; echo "#include <asm-generic/dma.h>" >arch/arm64/include/generated/asm/dma.h
@@ -76,19 +80,22 @@ echo '  WRAP    arch/arm64/include/generated/asm/early_ioremap.h'; echo "#includ
 echo '  WRAP    arch/arm64/include/generated/asm/emergency-restart.h'; echo "#include <asm-generic/emergency-restart.h>" >arch/arm64/include/generated/asm/emergency-restart.h
 echo '  WRAP    arch/arm64/include/generated/asm/hw_irq.h'; echo "#include <asm-generic/hw_irq.h>" >arch/arm64/include/generated/asm/hw_irq.h
 echo '  WRAP    arch/arm64/include/generated/asm/irq_regs.h'; echo "#include <asm-generic/irq_regs.h>" >arch/arm64/include/generated/asm/irq_regs.h
+ 
 echo '  WRAP    arch/arm64/include/generated/asm/kdebug.h'; echo "#include <asm-generic/kdebug.h>" >arch/arm64/include/generated/asm/kdebug.h
 echo '  WRAP    arch/arm64/include/generated/asm/kmap_types.h'; echo "#include <asm-generic/kmap_types.h>" >arch/arm64/include/generated/asm/kmap_types.h
 echo '  WRAP    arch/arm64/include/generated/asm/local.h'; echo "#include <asm-generic/local.h>" >arch/arm64/include/generated/asm/local.h
 echo '  WRAP    arch/arm64/include/generated/asm/local64.h'; echo "#include <asm-generic/local64.h>" >arch/arm64/include/generated/asm/local64.h
 echo '  WRAP    arch/arm64/include/generated/asm/mcs_spinlock.h'; echo "#include <asm-generic/mcs_spinlock.h>" >arch/arm64/include/generated/asm/mcs_spinlock.h
+ 
 echo '  WRAP    arch/arm64/include/generated/asm/mm-arch-hooks.h'; echo "#include <asm-generic/mm-arch-hooks.h>" >arch/arm64/include/generated/asm/mm-arch-hooks.h
 echo '  WRAP    arch/arm64/include/generated/asm/msi.h'; echo "#include <asm-generic/msi.h>" >arch/arm64/include/generated/asm/msi.h
- 
 echo '  WRAP    arch/arm64/include/generated/asm/preempt.h'; echo "#include <asm-generic/preempt.h>" >arch/arm64/include/generated/asm/preempt.h
+ 
 echo '  WRAP    arch/arm64/include/generated/asm/rwsem.h'; echo "#include <asm-generic/rwsem.h>" >arch/arm64/include/generated/asm/rwsem.h
 echo '  WRAP    arch/arm64/include/generated/asm/segment.h'; echo "#include <asm-generic/segment.h>" >arch/arm64/include/generated/asm/segment.h
 echo '  WRAP    arch/arm64/include/generated/asm/serial.h'; echo "#include <asm-generic/serial.h>" >arch/arm64/include/generated/asm/serial.h
 echo '  WRAP    arch/arm64/include/generated/asm/set_memory.h'; echo "#include <asm-generic/set_memory.h>" >arch/arm64/include/generated/asm/set_memory.h
+ 
 echo '  WRAP    arch/arm64/include/generated/asm/sizes.h'; echo "#include <asm-generic/sizes.h>" >arch/arm64/include/generated/asm/sizes.h
 echo '  WRAP    arch/arm64/include/generated/asm/switch_to.h'; echo "#include <asm-generic/switch_to.h>" >arch/arm64/include/generated/asm/switch_to.h
 echo '  WRAP    arch/arm64/include/generated/asm/trace_clock.h'; echo "#include <asm-generic/trace_clock.h>" >arch/arm64/include/generated/asm/trace_clock.h
@@ -97,16 +104,17 @@ echo '  WRAP    arch/arm64/include/generated/asm/unaligned.h'; echo "#include <a
 echo '  WRAP    arch/arm64/include/generated/asm/user.h'; echo "#include <asm-generic/user.h>" >arch/arm64/include/generated/asm/user.h
 echo '  WRAP    arch/arm64/include/generated/asm/vga.h'; echo "#include <asm-generic/vga.h>" >arch/arm64/include/generated/asm/vga.h
 echo '  WRAP    arch/arm64/include/generated/asm/xor.h'; echo "#include <asm-generic/xor.h>" >arch/arm64/include/generated/asm/xor.h
+ 
 :
  
-set -e; echo '  CHK     include/generated/uapi/linux/version.h'; mkdir -p include/generated/uapi/linux/; 	(echo \#define LINUX_VERSION_CODE 265915; echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))';) < Makefile > include/generated/uapi/linux/version.h.tmp; if [ -r include/generated/uapi/linux/version.h ] && cmp -s include/generated/uapi/linux/version.h include/generated/uapi/linux/version.h.tmp; then rm -f include/generated/uapi/linux/version.h.tmp; else echo '  UPD     include/generated/uapi/linux/version.h'; mv -f include/generated/uapi/linux/version.h.tmp include/generated/uapi/linux/version.h; fi
+set -e; echo '  CHK     include/generated/uapi/linux/version.h'; mkdir -p include/generated/uapi/linux/; 	(echo \#define LINUX_VERSION_CODE 265918; echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))';) < Makefile > include/generated/uapi/linux/version.h.tmp; if [ -r include/generated/uapi/linux/version.h ] && cmp -s include/generated/uapi/linux/version.h include/generated/uapi/linux/version.h.tmp; then rm -f include/generated/uapi/linux/version.h.tmp; else echo '  UPD     include/generated/uapi/linux/version.h'; mv -f include/generated/uapi/linux/version.h.tmp include/generated/uapi/linux/version.h; fi
 rm -f include/linux/version.h
  
 make -f ./scripts/Makefile.build obj=scripts/basic
  
 (cat /dev/null; ) > scripts/basic/modules.order
  
-set -e;  echo '  HOSTCC  scripts/basic/fixdep'; gcc -Wp,-MD,scripts/basic/.fixdep.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89      -o scripts/basic/fixdep scripts/basic/fixdep.c  ; scripts/basic/fixdep scripts/basic/.fixdep.d scripts/basic/fixdep 'gcc -Wp,-MD,scripts/basic/.fixdep.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89      -o scripts/basic/fixdep scripts/basic/fixdep.c  ' > scripts/basic/.fixdep.tmp; rm -f scripts/basic/.fixdep.d; mv -f scripts/basic/.fixdep.tmp scripts/basic/.fixdep.cmd;
+:
 :
  
 rm -f .tmp_quiet_recordmcount
@@ -118,20 +126,14 @@ make -f ./Makefile silentoldconfig
 make -f ./scripts/Makefile.build obj=scripts/basic
  
 (cat /dev/null; ) > scripts/basic/modules.order
- 
-set -e;  echo '  HOSTCC  scripts/basic/fixdep'; gcc -Wp,-MD,scripts/basic/.fixdep.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89      -o scripts/basic/fixdep scripts/basic/fixdep.c  ; scripts/basic/fixdep scripts/basic/.fixdep.d scripts/basic/fixdep 'gcc -Wp,-MD,scripts/basic/.fixdep.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89      -o scripts/basic/fixdep scripts/basic/fixdep.c  ' > scripts/basic/.fixdep.tmp; rm -f scripts/basic/.fixdep.d; mv -f scripts/basic/.fixdep.tmp scripts/basic/.fixdep.cmd;
 :
- 
+:
 rm -f .tmp_quiet_recordmcount
- 
 make -f ./scripts/Makefile.build obj=scripts/kconfig silentoldconfig
  
-set -e;  echo '  HOSTCC  scripts/kconfig/conf.o'; gcc -Wp,-MD,scripts/kconfig/.conf.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89    -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600 -DCURSES_LOC="<ncurses.h>" -DNCURSES_WIDECHAR=1 -DLOCALE   -c -o scripts/kconfig/conf.o scripts/kconfig/conf.c; scripts/basic/fixdep scripts/kconfig/.conf.o.d scripts/kconfig/conf.o 'gcc -Wp,-MD,scripts/kconfig/.conf.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89    -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600 -DCURSES_LOC="<ncurses.h>" -DNCURSES_WIDECHAR=1 -DLOCALE   -c -o scripts/kconfig/conf.o scripts/kconfig/conf.c' > scripts/kconfig/.conf.o.tmp; rm -f scripts/kconfig/.conf.o.d; mv -f scripts/kconfig/.conf.o.tmp scripts/kconfig/.conf.o.cmd;
+:
  
-echo '  SHIPPED scripts/kconfig/zconf.tab.c'; cat scripts/kconfig/zconf.tab.c_shipped > scripts/kconfig/zconf.tab.c
-echo '  SHIPPED scripts/kconfig/zconf.lex.c'; cat scripts/kconfig/zconf.lex.c_shipped > scripts/kconfig/zconf.lex.c
- 
-set -e;  echo '  HOSTCC  scripts/kconfig/zconf.tab.o'; gcc -Wp,-MD,scripts/kconfig/.zconf.tab.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89    -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600 -DCURSES_LOC="<ncurses.h>" -DNCURSES_WIDECHAR=1 -DLOCALE  -Iscripts/kconfig -c -o scripts/kconfig/zconf.tab.o scripts/kconfig/zconf.tab.c; scripts/basic/fixdep scripts/kconfig/.zconf.tab.o.d scripts/kconfig/zconf.tab.o 'gcc -Wp,-MD,scripts/kconfig/.zconf.tab.o.d -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89    -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600 -DCURSES_LOC="<ncurses.h>" -DNCURSES_WIDECHAR=1 -DLOCALE  -Iscripts/kconfig -c -o scripts/kconfig/zconf.tab.o scripts/kconfig/zconf.tab.c' > scripts/kconfig/.zconf.tab.o.tmp; rm -f scripts/kconfig/.zconf.tab.o.d; mv -f scripts/kconfig/.zconf.tab.o.tmp scripts/kconfig/.zconf.tab.o.cmd;
+:
  
 set -e;  echo '  HOSTLD  scripts/kconfig/conf'; gcc  -o scripts/kconfig/conf scripts/kconfig/conf.o scripts/kconfig/zconf.tab.o  ; printf '%s\n' 'cmd_scripts/kconfig/conf := gcc  -o scripts/kconfig/conf scripts/kconfig/conf.o scripts/kconfig/zconf.tab.o  ' > scripts/kconfig/.conf.cmd
 mkdir -p include/config include/generated

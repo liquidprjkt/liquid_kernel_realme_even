@@ -41,6 +41,7 @@ cgroup.memory=nosocket,nokmem \
 firmware_class.path=/vendor/firmware \
 page_owner=on loop.max_part=7";
 		kaslr-seed = <0 0>;
+		rng-seed = <0x12345678>;
 	};
 
         shell_front {

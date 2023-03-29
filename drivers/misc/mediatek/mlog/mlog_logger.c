@@ -409,7 +409,7 @@ static void mlog_buddyinfo(void)
 		unsigned long flags;
 		unsigned int order;
 #if defined(OPLUS_FEATURE_MULTI_FREEAREA) && defined(CONFIG_PHYSICAL_ANTI_FRAGMENTATION)
-		unsigned long nr[FREE_AREA_COUNTS][MAX_ORDER] = {0};
+		unsigned long nr[FREE_AREA_COUNTS][MAX_ORDER] = {};
 		unsigned int flc;
 #else
 		unsigned long nr[MAX_ORDER] = {0};

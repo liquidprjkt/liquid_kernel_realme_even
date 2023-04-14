@@ -40,6 +40,30 @@ config CFQ_GROUP_IOSCHED
 	---help---
 	  Enable group IO scheduling in CFQ.
 
+config IOSCHED_ZEN
+       tristate "ZEN I/O scheduler"
+       default y
+
+config IOSCHED_MAPLE
+       tristate "Maple I/O scheduler"
+       default y
+
+config IOSCHED_KYBER
+       tristate "KYBER I/O scheduler"
+       default y
+
+config IOSCHED_SIO
+       tristate "Simple I/O scheduler"
+       default y
+
+config IOSCHED_TRIPNDROID
+       tristate "tripndroid I/O scheduler"
+       default y
+
+config IOSCHED_ANXIETY
+       tristate "Anxiety I/O scheduler"
+       default y
+
 choice
 
 	prompt "Default I/O scheduler"
@@ -57,6 +81,24 @@ choice
 	config DEFAULT_NOOP
 		bool "No-op"
 
+        config DEFAULT_MAPLE
+               bool "Maple" if IOSCHED_MAPLE=y
+
+        config DEFAULT_ZEN
+               bool "Zen" if IOSCHED_ZEN=y
+        
+        config DEFAULT_KYBER
+               bool "Kyber" if IOSCHED_KYBER=y
+
+        config DEFAULT_SIO
+               bool "SIO" if IOSCHED_SIO=y
+
+        config DEFAULT_TRIPNDROID
+               bool "tripndroid" if IOSCHED_TRIPNDROID=y
+
+        config DEFAULT_ANXIETY
+               bool "Anxiety" if IOSCHED_ANXIETY=y
+
 endchoice
 
 config DEFAULT_IOSCHED
@@ -64,6 +106,12 @@ config DEFAULT_IOSCHED
 	default "deadline" if DEFAULT_DEADLINE
 	default "cfq" if DEFAULT_CFQ
 	default "noop" if DEFAULT_NOOP
+        default "zen" if DEFAULT_ZEN
+        default "maple" if DEFAULT_MAPLE
+        default "kyber" if DEFAULT_KYBER
+        default "sio" if DEFAULT_SIO
+        default "tripndroid" if DEFAULT_TRIPNDROID
+        default "anxiety" if DEFAULT_ANXIETY
 
 config MQ_IOSCHED_DEADLINE
 	tristate "MQ deadline I/O scheduler"

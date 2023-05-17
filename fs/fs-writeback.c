@@ -1107,6 +1107,7 @@ static void redirty_tail_locked(struct inode *inode, struct bdi_writeback *wb)
 	}
 	inode_io_list_move_locked(inode, wb, &wb->b_dirty);
 	inode->i_state &= ~I_SYNC_QUEUED;
+}
 
 static void redirty_tail(struct inode *inode, struct bdi_writeback *wb)
 {
@@ -1171,9 +1172,7 @@ static int move_expired_inodes(struct list_head *delaying_queue,
 			break;
 		list_move(&inode->i_io_list, &tmp);
 		moved++;
-		spin_lock(&inode->i_lock);=
-		if (flags & EXPIRE_DIRTY_ATIME)
-			inode->i_state |= I_DIRTY_TIME_EXPIRED;
+		spin_lock(&inode->i_lock);
 		inode->i_state |= I_SYNC_QUEUED;
 		spin_unlock(&inode->i_lock);
 		if (sb_is_blkdev_sb(inode->i_sb))

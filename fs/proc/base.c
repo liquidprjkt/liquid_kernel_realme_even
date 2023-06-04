@@ -117,7 +117,7 @@
 #ifdef VENDOR_EDIT
 /* Wen.Luo@BSP.Kernel.Stability, 2019/04/26, Add for Process memory statistics */
 extern size_t get_ion_heap_by_pid(pid_t pid);
-extern int get_gl_mem_by_pid(pid_t pid);
+//extern int get_gl_mem_by_pid(pid_t pid);
 #endif
 
 #ifdef OPLUS_FEATURE_UIFIRST
@@ -439,7 +439,7 @@ static ssize_t proc_pid_real_phymemory_read(struct file *file, char __user *buf,
 	tsk = tsk->group_leader;
 	get_task_struct(tsk);
 	ion = get_ion_heap_by_pid(tsk->pid);
-	gpu = get_gl_mem_by_pid(tsk->pid);
+	//gpu = get_gl_mem_by_pid(tsk->pid);
 
 	p = find_lock_task_mm(tsk);
 	if (p) {

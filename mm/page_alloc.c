@@ -4211,7 +4211,6 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 #endif
 #endif /* OPLUS_FEATURE_HEALTHINFO */
 
-	pg_data_t *pgdat = ac->preferred_zoneref->zone->zone_pgdat;
 	bool woke_kswapd = false;
 	bool used_vmpressure = false;
 

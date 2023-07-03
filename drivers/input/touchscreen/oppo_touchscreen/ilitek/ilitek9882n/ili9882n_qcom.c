@@ -3707,7 +3707,7 @@ static struct spi_driver tp_spi_driver = {
     .remove = ilitek9882n_spi_remove,
 };
 
-int  tp_driver_init_ili_9882n(void)
+int __init tp_driver_init_ili_9882n(void)
 {
     int res = 0;
     ILI_INFO("%s is called\n", __func__);

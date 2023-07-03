@@ -240,8 +240,7 @@ bool __init tp_judge_ic_match(char *tp_ic_name)
 	return true;
 }
 
-EXPORT_SYMBOL(tp_judge_ic_match);
-bool  tp_judge_ic_match_commandline(struct panel_info *panel_data)
+bool tp_judge_ic_match_commandline(struct panel_info *panel_data)
 {
 	int prj_id = 0;
 	int i = 0;

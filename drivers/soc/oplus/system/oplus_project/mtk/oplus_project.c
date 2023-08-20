@@ -24,7 +24,7 @@
 #define SMEM_PROJECT    135
 
 #define UINT2Ptr(n)        (uint32_t *)(n)
-#define Ptr2UINT32(p)    (uint32_t)(p)
+#define Ptr2UINT32(p)    (*(uint32_t *)&(p))
 
 #define PROJECT_VERSION            (0x1)
 #define PCB_VERSION                (0x2)
@@ -653,7 +653,7 @@ static int project_read_func(struct seq_file *s, void *v)
     return 0;
 }
 
-unsigned int get_cdt_version()
+unsigned int get_cdt_version(void)
 {
     init_project_version();
 

@@ -1979,7 +1979,7 @@ int oplus_bq2589x_set_ichg(int cur)
 	u32 uA = cur*1000;
 	u32 temp_uA;
 	int ret = 0;
-	static old_cur = 0;
+	static int old_cur = 0;
 
 	if (g_oplus_chip->mmi_chg == 0)
 		cur = 100;

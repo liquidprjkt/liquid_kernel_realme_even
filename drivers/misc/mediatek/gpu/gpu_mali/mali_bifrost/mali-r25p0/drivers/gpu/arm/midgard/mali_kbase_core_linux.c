@@ -97,6 +97,7 @@
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
 #include <linux/log2.h>
+#include <linux/pm_qos.h>
 
 #include <mali_kbase_config.h>
 
@@ -1504,7 +1505,7 @@ static int kbase_api_tlstream_stats(struct kbase_context *kctx,
 		return ret;                                            \
 	} while (0)
 
-static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+static long __kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct kbase_file *const kfile = filp->private_data;
 	struct kbase_context *kctx = NULL;
@@ -1785,6 +1786,21 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return -ENOIOCTLCMD;
 }
 
+long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct pm_qos_request req = {
+		.type = PM_QOS_REQ_AFFINE_CORES,
+		.cpus_affine = ATOMIC_INIT(BIT(raw_smp_processor_id()))
+	};
+	long ret;
+
+	pm_qos_add_request(&req, PM_QOS_CPU_DMA_LATENCY, 100);
+	ret = __kbase_ioctl(filp, cmd, arg);
+	pm_qos_remove_request(&req);
+
+	return ret;
+}
+
 static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
 	struct kbase_file *const kfile = filp->private_data;
@@ -1849,7 +1865,7 @@ void kbase_event_wakeup(struct kbase_context *kctx)
 {
 	KBASE_DEBUG_ASSERT(kctx);
 
-	wake_up_interruptible(&kctx->event_queue);
+	wake_up_interruptible_sync(&kctx->event_queue);
 }
 
 KBASE_EXPORT_TEST_API(kbase_event_wakeup);

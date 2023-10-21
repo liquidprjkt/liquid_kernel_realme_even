@@ -640,6 +640,9 @@ struct kbase_devfreq_queue_info {
  * @total_gpu_pages:    Total gpu pages allocated across all the contexts
  *                      of this process, it accounts for both native allocations
  *                      and dma_buf imported allocations.
+ * @dma_buf_pages:      Total dma_buf pages allocated across all the contexts
+ *                      of this process, native allocations can be accounted for
+ *                      by subtracting this from &total_gpu_pages.
  * @kctx_list:          List of kbase contexts created for the process.
  * @kprcs_node:         Node to a rb_tree, kbase_device will maintain a rb_tree
  *                      based on key tgid, kprcs_node is the node link to
@@ -653,6 +656,7 @@ struct kbase_devfreq_queue_info {
 struct kbase_process {
 	pid_t tgid;
 	size_t total_gpu_pages;
+	size_t dma_buf_pages;
 	struct list_head kctx_list;
 
 	struct rb_node kprcs_node;
@@ -906,6 +910,10 @@ struct kbase_process {
  *                          Job Scheduler
  * @l2_size_override:       Used to set L2 cache size via device tree blob
  * @l2_hash_override:       Used to set L2 cache hash via device tree blob
+ * @job_done_worker:        Worker for job_done work.
+ * @job_done_worker_thread: Thread for job_done work.
+ * @event_worker:           Worker for event work.
+ * @event_worker_thread:    Thread for event work.
  * @process_root:           rb_tree root node for maintaining a rb_tree of
  *                          kbase_process based on key tgid(thread group ID).
  * @dma_buf_root:           rb_tree root node for maintaining a rb_tree of
@@ -915,6 +923,7 @@ struct kbase_process {
  *                          mapping and gpu memory usage at device level and
  *                          other one at process level.
  * @total_gpu_pages:        Total GPU pages used for the complete GPU device.
+ * @dma_buf_pages:          Total dma_buf pages used for GPU platform device.
  * @dma_buf_lock:           This mutex should be held while accounting for
  *                          @total_gpu_pages from imported dma buffers.
  * @gpu_mem_usage_lock:     This spinlock should be held while accounting
@@ -1146,6 +1155,11 @@ struct kbase_device {
 
 	struct kbasep_js_device_data js_data;
 
+	struct kthread_worker job_done_worker;
+	struct task_struct *job_done_worker_thread;
+	struct kthread_worker event_worker;
+	struct task_struct *event_worker_thread;
+
 	/* See KBASE_JS_*_PRIORITY_MODE for details. */
 	u32 js_ctx_scheduling_mode;
 
@@ -1161,6 +1175,7 @@ struct kbase_device {
 	struct rb_root dma_buf_root;
 
 	size_t total_gpu_pages;
+	size_t dma_buf_pages;
 	struct mutex dma_buf_lock;
 	spinlock_t gpu_mem_usage_lock;
 
@@ -1349,8 +1364,6 @@ struct kbase_sub_alloc {
  * @event_closed:         Flag set through POST_TERM ioctl, indicates that Driver
  *                        should stop posting events and also inform event handling
  *                        thread that context termination is in progress.
- * @event_workq:          Workqueue for processing work items corresponding to atoms
- *                        that do not return an event to userspace.
  * @event_count:          Count of the posted events to be consumed by Userspace.
  * @event_coalesce_count: Count of the events present in @event_coalesce_list.
  * @flags:                bitmap of enums from kbase_context_flags, indicating the
@@ -1600,7 +1613,6 @@ struct kbase_context {
 	struct list_head event_coalesce_list;
 	struct mutex event_mutex;
 	atomic_t event_closed;
-	struct workqueue_struct *event_workq;
 	atomic_t event_count;
 	int event_coalesce_count;
 

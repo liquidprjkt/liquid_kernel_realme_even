@@ -125,10 +125,11 @@ all.config
 # fetched Android config fragments
 kernel/configs/android-*.cfg
 
+# compilers, compiler output, scripts
 /out/
 /clang/
-/los-4.9-32/
-/los-4.9-64/
-/AnyKernel/
-/modules/
-liquid-even.sh
+/clang-proton/
+/anykernel3/
+/arm-gcc/
+/aarch64-gcc/
+origami_kernel_builder.sh

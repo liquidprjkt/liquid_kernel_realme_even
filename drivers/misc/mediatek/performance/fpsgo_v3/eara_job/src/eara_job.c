@@ -1392,8 +1392,8 @@ static const struct file_operations eara_pwr_tbl_fops = {
 static int __init init_eara_job(void)
 {
 
-	if (!fpsgo_debugfs_dir)
-		goto err;
+	//if (!fpsgo_debugfs_dir)
+	//	goto err;
 
 	eara_debugfs_dir = debugfs_create_dir("eara",
 			fpsgo_debugfs_dir);

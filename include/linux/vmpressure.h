@@ -38,8 +38,7 @@ extern int vmpressure_notifier_unregister(struct notifier_block *nb);
 extern void vmpressure(gfp_t gfp, struct mem_cgroup *memcg, bool tree,
 		       unsigned long scanned, unsigned long reclaimed,
 		       int order);
-extern void vmpressure_prio(gfp_t gfp, struct mem_cgroup *memcg, int prio,
-			    int order);
+extern void vmpressure_prio(gfp_t gfp, struct mem_cgroup *memcg, int prio);
 extern bool vmpressure_inc_users(int order);
 extern void vmpressure_dec_users(void);
 

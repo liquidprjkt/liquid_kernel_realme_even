@@ -133,6 +133,7 @@ kernel/configs/android-*.cfg
 /clang/
 /clang-proton/
 /anykernel3/
+/anykernel/
 /arm-gcc/
 /aarch64-gcc/
 origami_kernel_builder.sh

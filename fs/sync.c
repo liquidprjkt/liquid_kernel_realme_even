@@ -239,6 +239,9 @@ static int do_fsync(unsigned int fd, int datasync)
 		fdput(f);
 #if defined(OPLUS_FEATURE_IOMONITOR) && defined(CONFIG_IOMONITOR) && defined(OPLUS_FEATURE_HEALTHINFO)
 		iomonitor_update_fs_stats(FS_FSYNC, 1);
+#endif
+
+#ifndef OPLUS_FEATURE_HEALTHINFO
 		trace_syscall_sync_timeout(f.file, jiffies_to_msecs(jiffies - fsync_time));
 #endif /*OPLUS_FEATURE_IOMONITOR & OPLUS_FEATURE_HEALTHINFO*/
 		inc_syscfs(current);

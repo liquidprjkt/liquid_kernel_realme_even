@@ -3097,7 +3097,7 @@ CONFIG_VIDEO_IR_I2C=y
 #
 # ACP (Audio CoProcessor) Configuration
 #
-# CONFIG_DRM_MTK_DISABLE_AEE_LAYER is not set
+CONFIG_DRM_MTK_DISABLE_AEE_LAYER=y
 # CONFIG_DRM_LIB_RANDOM is not set
 
 #

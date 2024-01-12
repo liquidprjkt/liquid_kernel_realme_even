@@ -582,6 +582,7 @@ static void sys_sync_work_func(struct work_struct *work)
 	wake_up(&sys_sync_wait);
 }
 
+#ifdef OPLUS_FEATURE_HEALTHINFO
 static int sys_sync_queue(void)
 {
 	int work_status = work_busy(&sys_sync_work);
@@ -618,6 +619,7 @@ static int sys_sync_queue(void)
 abort:
 	return -EAGAIN;
 }
+#endif /* OPLUS_FEATURE_HEALTHINFO */
 
 #if MTK_SOLUTION
 

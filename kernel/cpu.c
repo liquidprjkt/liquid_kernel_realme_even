@@ -1022,7 +1022,17 @@ static int cpu_down_maps_locked(unsigned int cpu, enum cpuhp_state target)
 
 static int do_cpu_down(unsigned int cpu, enum cpuhp_state target)
 {
+   	struct cpumask newmask;
 	int err;
+
+	preempt_disable();
+	cpumask_andnot(&newmask, cpu_online_mask, cpumask_of(cpu));
+	preempt_enable();
+
+	/* One big, LITTLE, and prime CPU must remain online */
+	if (!cpumask_intersects(&newmask, cpu_lp_mask) ||
+	    !cpumask_intersects(&newmask, cpu_perf_mask))
+		return -EINVAL;
 
 	cpu_maps_update_begin();
 	err = cpu_down_maps_locked(cpu, target);
@@ -1196,6 +1206,7 @@ int freeze_secondary_cpus(int primary)
 	int cpu, error = 0;
 
 	cpu_maps_update_begin();
+	unaffine_perf_irqs();
 	if (!cpu_online(primary))
 		primary = cpumask_first(cpu_online_mask);
 	/*
@@ -1278,6 +1289,7 @@ void enable_nonboot_cpus(void)
 	arch_enable_nonboot_cpus_end();
 
 	cpumask_clear(frozen_cpus);
+	reaffine_perf_irqs(false);
 out:
 	cpu_maps_update_done();
 }
@@ -2283,6 +2295,38 @@ EXPORT_SYMBOL(__cpu_active_mask);
 
 struct cpumask __cpu_isolated_mask __read_mostly;
 EXPORT_SYMBOL(__cpu_isolated_mask);
+
+#if CONFIG_LITTLE_CPU_MASK
+static const unsigned long lp_cpu_bits = CONFIG_LITTLE_CPU_MASK;
+const struct cpumask *const cpu_lp_mask = to_cpumask(&lp_cpu_bits);
+#else
+const struct cpumask *const cpu_lp_mask = cpu_possible_mask;
+#endif
+EXPORT_SYMBOL(cpu_lp_mask);
+
+#if CONFIG_BIG_CPU_MASK
+static const unsigned long perf_cpu_bits = CONFIG_BIG_CPU_MASK;
+const struct cpumask *const cpu_perf_mask = to_cpumask(&perf_cpu_bits);
+#else
+const struct cpumask *const cpu_perf_mask = cpu_possible_mask;
+#endif
+EXPORT_SYMBOL(cpu_perf_mask);
+
+#if CONFIG_BIG_CPU_FIRST_MASK
+static const unsigned long perf_cpu_first_bits = CONFIG_BIG_CPU_FIRST_MASK;
+const struct cpumask *const cpu_perf_first_mask = to_cpumask(&perf_cpu_first_bits);
+#else
+const struct cpumask *const cpu_perf_first_mask = cpu_possible_mask;
+#endif
+EXPORT_SYMBOL(cpu_perf_first_mask);
+
+#if CONFIG_BIG_CPU_SECOND_MASK
+static const unsigned long perf_cpu_second_bits = CONFIG_BIG_CPU_SECOND_MASK;
+const struct cpumask *const cpu_perf_second_mask = to_cpumask(&perf_cpu_second_bits);
+#else
+const struct cpumask *const cpu_perf_second_mask = cpu_possible_mask;
+#endif
+EXPORT_SYMBOL(cpu_perf_second_mask);
 
 void init_cpu_present(const struct cpumask *src)
 {

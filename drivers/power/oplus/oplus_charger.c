@@ -96,7 +96,7 @@ extern bool oplus_is_power_off_charging(struct oplus_vooc_chip *chip);
 #define charger_xlog_printk(num, fmt, ...) \
 		do { \
 			if (enable_charger_log >= (int)num) { \
-				printk(KERN_NOTICE pr_fmt("[OPLUS_CHG][%s]"fmt), __func__, ##__VA_ARGS__); \
+				pr_debug(KERN_NOTICE pr_fmt("[OPLUS_CHG][%s]"fmt), __func__, ##__VA_ARGS__); \
 			} \
 		} while (0)
 
@@ -598,7 +598,7 @@ int oplus_battery_set_property(struct power_supply *psy,
 			break;
 #endif
 		default:
-			pr_err("set prop %d is not supported in batt\n", psp);
+			//pr_err("set prop %d is not supported in batt\n", psp);
 			ret = -EINVAL;
 			break;
 	}
@@ -606,10 +606,10 @@ int oplus_battery_set_property(struct power_supply *psy,
 }
 
 
-#define OPLUS_MIDAS_CHG_DEBUG 1
+#define OPLUS_MIDAS_CHG_DEBUG 0
 #ifdef OPLUS_MIDAS_CHG_DEBUG
 #define	midas_debug(fmt, args...)	\
-	pr_notice("[OPLUS_MIDAS_CHG_DEBUG]" fmt, ##args)
+	pr_debug("[OPLUS_MIDAS_CHG_DEBUG]" fmt, ##args)
 #else
 #define	midas_debug(fmt, args...)
 #endif /* OPLUS_MIDAS_CHG_DEBUG */
@@ -964,7 +964,7 @@ if (chip == NULL) {
 			break;
 #endif
 		default:
-			pr_err("get prop %d is not supported in batt\n", psp);
+			//pr_err("get prop %d is not supported in batt\n", psp);
 			ret = -EINVAL;
 			break;
 	}

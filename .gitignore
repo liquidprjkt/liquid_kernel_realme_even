@@ -75,6 +75,7 @@ modules.builtin
 !.gitignore
 !.mailmap
 !.cocciconfig
+!.clang-format
 
 #
 # Generated include files
@@ -125,11 +126,16 @@ all.config
 # fetched Android config fragments
 kernel/configs/android-*.cfg
 
+# vscode
+/.vscode/
+
 # compilers, compiler output, scripts
 /out/
 /clang/
 /clang-proton/
 /anykernel3/
+/anykernel/
 /arm-gcc/
 /aarch64-gcc/
 origami_kernel_builder.sh
+.buildnumber

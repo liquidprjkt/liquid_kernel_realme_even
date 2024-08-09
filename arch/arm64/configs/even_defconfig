@@ -1386,7 +1386,7 @@ CONFIG_MTK_GPT_SCHEME_SUPPORT=y
 #
 CONFIG_MTK_BLOCK_TAG=y
 CONFIG_MTK_IO_BOOST=y
-CONFIG_MTK_PID_MAP=y
+# CONFIG_MTK_PID_MAP is not set
 
 #
 # Power, PMIC, Battery & Low Power related configs

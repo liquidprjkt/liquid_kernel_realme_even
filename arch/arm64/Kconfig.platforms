@@ -272,7 +272,6 @@ config MACH_MT6768
 	select CPU_IDLE
 	select MTK_BASE_POWER
 	select MTK_GIC_V3_EXT
-	select MTK_PID_MAP
 	select MTK_SYSIRQ
 	select MTK_DEBUG_LATCH
 	select MTK_PLAT_SRAM_FLAG

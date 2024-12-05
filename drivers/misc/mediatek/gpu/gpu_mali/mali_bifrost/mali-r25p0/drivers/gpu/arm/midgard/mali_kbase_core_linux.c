@@ -4315,7 +4315,7 @@ static ssize_t total_gpu_mem_show(
 	if (!kbdev)
 		return -ENODEV;
 
-	return sysfs_emit(buf, "%lu\n",
+	return sprintf(buf, "%lu\n",
 		(unsigned long) kbdev->total_gpu_pages << PAGE_SHIFT);
 }
 static DEVICE_ATTR_RO(total_gpu_mem);
@@ -4330,7 +4330,7 @@ static ssize_t dma_buf_gpu_mem_show(
 	if (!kbdev)
 		return -ENODEV;
 
-	return sysfs_emit(buf, "%lu\n",
+	return sprintf(buf, "%lu\n",
 		(unsigned long) kbdev->dma_buf_pages << PAGE_SHIFT);
 }
 static DEVICE_ATTR_RO(dma_buf_gpu_mem);

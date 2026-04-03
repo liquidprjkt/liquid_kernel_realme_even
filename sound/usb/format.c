@@ -199,8 +199,6 @@ static int parse_audio_format_rates_v1(struct snd_usb_audio *chip, struct audiof
 			    (chip->usb_id == USB_ID(0x041e, 0x4064) ||
 			     chip->usb_id == USB_ID(0x041e, 0x4068)))
 				rate = 8000;
-			if (rate > 48000)
-				continue;
 			/* AudioBox22 VSL */
 			if (rate >48000 &&chip->usb_id == USB_ID(0x194f, 0x0101))
 				continue;
@@ -313,8 +311,6 @@ static int parse_uac2_sample_rate_range(struct snd_usb_audio *chip,
 		}
 
 		for (rate = min; rate <= max; rate += res) {
-			if (rate > 48000)
-				break;
 			 /* AudioBox22 VSL */
 			if (rate >48000 &&chip->usb_id == USB_ID(0x194f, 0x0101))
 				break;

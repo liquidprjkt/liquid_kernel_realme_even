@@ -1929,6 +1929,16 @@ void ged_dvfs_run(unsigned long t, long phase, unsigned long ul3DFenceDoneTime)
 	unsigned long ui32IRQFlags;
 	unsigned int gpu_freq_pre;
 
+	/*
+	 * Locals for the deferred hardware commit. Populated under
+	 * gsDVFSLock, acted on after the lock is released so that the
+	 * slow ged_dvfs_gpu_freq_commit_fp() call does not block other
+	 * DVFS lock waiters (boost requests, thermal callbacks, etc.).
+	 */
+	bool do_commit = false;
+	unsigned long commit_freq_id;
+	unsigned long commit_freq;
+
 	mutex_lock(&gsDVFSLock);
 
 	if (gpu_dvfs_enable == 0) {
@@ -1994,14 +2004,16 @@ void ged_dvfs_run(unsigned long t, long phase, unsigned long ul3DFenceDoneTime)
 				ul3DFenceDoneTime, false)) {
 				gpu_freq_pre = mt_gpufreq_get_cur_freq();
 				g_computed_freq_id = g_ui32FreqIDFromPolicy;
-				ged_dvfs_gpu_freq_commit(g_ui32FreqIDFromPolicy,
-						mt_gpufreq_get_freq_by_idx(
-						g_ui32FreqIDFromPolicy),
-						GED_DVFS_DEFAULT_COMMIT);
-#ifdef CONFIG_MTK_QOS_V1_SUPPORT
-				mt_gpu_bw_qos_vcore(ged_dvfs_vcore(gpu_freq_pre,
-					mt_gpufreq_get_cur_freq(), false));
-#endif
+
+				/*
+				 * The actual ged_dvfs_gpu_freq_commit_fp()
+				 * call is deferred until after we drop
+				 * gsDVFSLock below.
+				 */
+				commit_freq_id = g_ui32FreqIDFromPolicy;
+				commit_freq = mt_gpufreq_get_freq_by_idx(
+						g_ui32FreqIDFromPolicy);
+				do_commit = true;
 			}
 		}
 	}
@@ -2013,6 +2025,21 @@ void ged_dvfs_run(unsigned long t, long phase, unsigned long ul3DFenceDoneTime)
 
 EXIT_ged_dvfs_run:
 	mutex_unlock(&gsDVFSLock);
+
+	/*
+	 * ged_dvfs_gpu_freq_commit() may block while programming OPP
+	 * registers, keeping it outside gsDVFSLock prevents boost /
+	 * thermal callbacks from stalling on every vsync tick.
+	 */
+	if (do_commit) {
+		ged_dvfs_gpu_freq_commit(commit_freq_id,
+				commit_freq,
+				GED_DVFS_DEFAULT_COMMIT);
+#ifdef CONFIG_MTK_QOS_V1_SUPPORT
+		mt_gpu_bw_qos_vcore(ged_dvfs_vcore(gpu_freq_pre,
+			mt_gpufreq_get_cur_freq(), false));
+#endif
+	}
 }
 
 void ged_dvfs_sw_vsync_query_data(struct GED_DVFS_UM_QUERY_PACK *psQueryData)
@@ -2428,4 +2455,3 @@ module_param(gpu_cust_upbound_freq, uint, 0644);
 module_param(g_gpu_timer_based_emu, uint, 0644);
 module_param(gpu_bw_err_debug, uint, 0644);
 #endif
-

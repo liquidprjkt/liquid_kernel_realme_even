@@ -91,13 +91,15 @@ static const struct file_operations GEEntry_fops = {
 
 GED_ERROR ged_ge_init(void)
 {
-	int flags = 0;
-	GED_ERROR err = GED_OK;
-
 	gPoolCache = kmem_cache_create("gralloc_extra",
-		sizeof(struct GEEntry), 0, flags, NULL);
+		sizeof(struct GEEntry), 0, 0, NULL);
 
-	return err;
+	if (!gPoolCache) {
+		GED_PDEBUG("kmem_cache_create failed\n");
+		return GED_ERROR_OOM;
+	}
+
+	return GED_OK;
 }
 
 int ged_ge_exit(void)

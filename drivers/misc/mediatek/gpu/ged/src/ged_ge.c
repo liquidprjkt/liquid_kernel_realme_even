@@ -169,6 +169,7 @@ int ged_ge_alloc(int region_num, uint32_t *region_sizes)
 	return fd;
 
 err_kmalloc:
+	fput(entry->file);
 err_entry_file:
 	put_unused_fd(entry->alloc_fd);
 err_fd:

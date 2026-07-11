@@ -26,6 +26,18 @@
 bool ili_debug_en = DEBUG_OUTPUT;
 EXPORT_SYMBOL(ili_debug_en);
 
+/*
+ * SPI clock index override (0 = 1MHz ... 14 = 15MHz, see freq[] in ili_core_spi_setup).
+ * Kept at SPI_CLK by default so behavior is unchanged unless explicitly tuned.
+ * Raising this shortens the per-packet SPI transfer time on every touch report,
+ * which directly lowers touch report latency, but the maximum stable value
+ * depends on board trace length and EMI, so it must be validated on hardware
+ * before shipping a non-default value.
+ */
+static int ili_spi_clk_index = SPI_CLK;
+module_param(ili_spi_clk_index, int, 0644);
+MODULE_PARM_DESC(ili_spi_clk_index, "SPI clock index (0=1MHz .. 14=15MHz) used at probe");
+
 struct ilitek_ts_data *ilits;
 extern int tp_register_times;
 extern void lcd_queue_load_tp_fw(void);
@@ -1141,6 +1153,12 @@ void ili_demo_debug_info_mode(u8 *buf, size_t len)
 static void ilitek_tddi_touch_send_debug_data(u8 *buf, int len)
 {
     int index;
+
+    // nothing is listening, skip the lock entirely
+    if (!ilits->netlink && !ilits->dnp) {
+        return;
+    }
+
     mutex_lock(&ilits->debug_mutex);
 
     if (!ilits->netlink && !ilits->dnp) {
@@ -2213,10 +2231,9 @@ int ili_core_spi_setup(int num)
         TP_SPI_CLK_15M
     };
 
-    if (num >= ARRAY_SIZE(freq)) {
+    if (num < 0 || num >= ARRAY_SIZE(freq)) {
         ILI_ERR("Invaild clk freq set default value\n");
-        num = 7;
-        //return -1;
+        num = SPI_CLK;
     }
 
     ILI_INFO("spi clock = %d\n", freq[num]);
@@ -3526,7 +3543,7 @@ int __maybe_unused ilitek9882n_spi_probe(struct spi_device *spi)
     ilitek_flag_data_init();
     ili_ic_init();
 
-    if (ili_core_spi_setup(SPI_CLK) < 0) {
+    if (ili_core_spi_setup(ili_spi_clk_index) < 0) {
         ILI_ERR("ili_core_spi_setup error\n");
     }
 

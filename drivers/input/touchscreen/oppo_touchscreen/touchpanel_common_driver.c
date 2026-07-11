@@ -15,6 +15,13 @@
 #include <linux/time.h>
 #include <linux/delay.h>
 #include <linux/regulator/consumer.h>
+#include <linux/sched.h>
+#include <linux/version.h>
+#include <linux/moduleparam.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <uapi/linux/sched/types.h>
+#include <linux/sched/prio.h>
+#endif
 
 #ifdef CONFIG_OPLUS_SYSTEM_SEC_DEBUG
 #include <soc/oplus/system/sec_debug.h>
@@ -90,7 +97,19 @@ void esd_handle_switch(struct esd_information *esd_info, bool flag);
 
 #ifdef TPD_USE_EINT
 static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id);
+static void tp_irq_thread_boost_priority(void);
 #endif
+
+/*
+ * Real-time priority applied to the touch irq thread the first time it runs.
+ * request_threaded_irq() otherwise leaves the thread at SCHED_OTHER, so it
+ * can be delayed behind normal-priority work under CPU load, which shows up
+ * as touch lag/stutter during gaming or heavy background activity. 0 keeps
+ * the kernel default (no boost).
+ */
+static int tp_irq_rt_priority = MAX_RT_PRIO - 1;
+module_param(tp_irq_rt_priority, int, 0644);
+MODULE_PARM_DESC(tp_irq_rt_priority, "SCHED_FIFO priority for the touch irq thread, 0 = kernel default");
 
 #if defined(CONFIG_FB) || defined(CONFIG_DRM_MSM)
 static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
@@ -1362,9 +1381,34 @@ static enum hrtimer_restart touchpanel_timer_func(struct hrtimer *timer)
     return HRTIMER_NORESTART;
 }
 #else
+
+/**
+ * @brief Raise the touch irq thread to SCHED_FIFO.
+ */
+static void tp_irq_thread_boost_priority(void)
+{
+    static bool boosted;
+    struct sched_param param = { .sched_priority = tp_irq_rt_priority };
+
+    if (boosted || tp_irq_rt_priority <= 0) {
+        return;
+    }
+
+    if (tp_irq_rt_priority >= MAX_RT_PRIO) {
+        param.sched_priority = MAX_RT_PRIO - 1;
+    }
+
+    if (sched_setscheduler_nocheck(current, SCHED_FIFO, &param) == 0) {
+        boosted = true;
+    }
+}
+
 static irqreturn_t tp_irq_thread_fn(int irq, void *dev_id)
 {
     struct touchpanel_data *ts = (struct touchpanel_data *)dev_id;
+
+    tp_irq_thread_boost_priority();
+
     if (ts->ts_ops->tp_irq_throw_away) {
         if (ts->ts_ops->tp_irq_throw_away(ts->chip_data)) {
             return IRQ_HANDLED;

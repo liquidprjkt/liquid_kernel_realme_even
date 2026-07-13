@@ -1988,6 +1988,7 @@ CONFIG_MTK_MLOG=y
 # CONFIG_CAMERA_LDO is not set
 # CONFIG_OPPO_MOTOR is not set
 # CONFIG_AW8697_HAPTIC is not set
+CONFIG_ENCORE_FAS_FRAMETIME=y
 
 #
 # SCSI device support

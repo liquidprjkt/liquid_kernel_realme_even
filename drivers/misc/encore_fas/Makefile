@@ -1,0 +1,1 @@
+obj-$(CONFIG_ENCORE_FAS_FRAMETIME) += encore_fas.o

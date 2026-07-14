@@ -25,6 +25,8 @@ enum fas_event_type {
     FAS_EVENT_FRAME_OK = 0,
     FAS_EVENT_SMALL_JANK = 1,
     FAS_EVENT_BIG_JANK = 2,
+    FAS_EVENT_BOOST_SOFT = 3,
+    FAS_EVENT_BOOST_HARD = 4,
 };
 
 struct fas_jank_event {

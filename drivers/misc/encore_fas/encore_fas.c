@@ -32,8 +32,12 @@
 
 #define FAS_EVENT_FIFO_SIZE   1024
 #define FAS_DEFAULT_FPS       60
-#define FAS_MIN_PERIOD_NS     (1000000ULL)
+#define FAS_SMALL_MULT        2
+#define FAS_BIG_MULT          5
 #define FAS_BIG_JANK_FLOOR_MS 200
+#define FAS_EMA_DIVISOR       5
+#define FAS_RELOCK_STREAK     3
+#define FAS_RELOCK_TOLERANCE_PCT 20
 
 // ==========================================
 // ARM64 Hardware Counter
@@ -77,16 +81,12 @@ struct fas_context {
     bool uprobe_registered;
     struct uprobe_consumer consumer;
 
-    struct hrtimer vsync_timer;
-    ktime_t target_period;
-    ktime_t current_period;
-    atomic64_t last_queue_buffer_ms;
-    uint64_t last_checked_ms;
-    uint32_t consecutive_miss;
-    bool reported_small;
-    bool reported_big;
-    uint64_t small_jank_ms;
-    uint64_t big_jank_ms;
+    struct hrtimer watchdog_timer;
+    uint64_t baseline_ms;
+    uint64_t last_frame_ms;
+    int watchdog_stage;
+    uint32_t relock_count;
+    uint64_t relock_deltas[FAS_RELOCK_STREAK];
 
     struct work_struct teardown_work;
     struct list_head node;
@@ -135,6 +135,65 @@ static inline bool fas_caller_is_root(void) {
 // Jank detection
 // ==========================================
 
+static inline uint64_t fas_small_threshold(struct fas_context *ctx) {
+    return ctx->baseline_ms * FAS_SMALL_MULT;
+}
+
+static inline uint64_t fas_big_threshold(struct fas_context *ctx) {
+    return max_t(uint64_t, ctx->baseline_ms * FAS_BIG_MULT, FAS_BIG_JANK_FLOOR_MS);
+}
+
+static void fas_ema_update(struct fas_context *ctx, uint64_t delta) {
+    int64_t diff = (int64_t)delta - (int64_t)ctx->baseline_ms;
+
+    ctx->baseline_ms = (uint64_t)((int64_t)ctx->baseline_ms + diff / FAS_EMA_DIVISOR);
+    if (ctx->baseline_ms == 0)
+        ctx->baseline_ms = 1;
+}
+
+static bool fas_deltas_close(uint64_t a, uint64_t b, uint32_t pct) {
+    uint64_t diff = a > b ? a - b : b - a;
+    uint64_t allowed = (a * pct) / 100;
+
+    return diff <= allowed;
+}
+
+/**
+ * @brief Tracks a short run of similarly-sized jank-range deltas. A single
+ *        dropped frame does not move the baseline, but a sustained cadence
+ *        change (mode switch, thermal cap, deliberately slow rendering)
+ *        snaps the baseline onto the new cluster within a few frames instead
+ *        of waiting for the EMA to slowly drift there.
+ */
+static void fas_relock_update(struct fas_context *ctx, uint64_t delta) {
+    if (ctx->relock_count > 0 &&
+        !fas_deltas_close(ctx->relock_deltas[ctx->relock_count - 1], delta, FAS_RELOCK_TOLERANCE_PCT))
+        ctx->relock_count = 0;
+
+    ctx->relock_deltas[ctx->relock_count % FAS_RELOCK_STREAK] = delta;
+    ctx->relock_count++;
+
+    if (ctx->relock_count >= FAS_RELOCK_STREAK) {
+        uint64_t sum = 0;
+        int i;
+
+        for (i = 0; i < FAS_RELOCK_STREAK; i++)
+            sum += ctx->relock_deltas[i];
+
+        ctx->baseline_ms = sum / FAS_RELOCK_STREAK;
+        ctx->relock_count = 0;
+    }
+}
+
+/**
+ * @brief Arms the watchdog for the next frame gap, timed off the current
+ *        adaptive baseline rather than a fixed guess.
+ */
+static void fas_arm_watchdog(struct fas_context *ctx) {
+    ctx->watchdog_stage = 0;
+    hrtimer_start(&ctx->watchdog_timer, ms_to_ktime(fas_small_threshold(ctx)), HRTIMER_MODE_REL);
+}
+
 /**
  * @brief Queues a jank event onto the shared fifo and wakes any readers
  *        blocked on poll()/read().
@@ -159,17 +218,38 @@ static void fas_push_event(int ctx_id, enum fas_event_type type, uint64_t framet
 }
 
 /**
- * @brief Uprobe hit handler for Surface::queueBuffer. Runs in breakpoint
- *        trap context of the traced task, so this only records a timestamp;
- *        all jank classification happens in the vsync hrtimer.
+ * @brief Uprobe hit handler for Surface::queueBuffer. Classifies the gap
+ *        since the previous frame against the adaptive baseline, feeds the
+ *        baseline (EMA on normal frames, relock streak on sustained jank
+ *        ranges), and re-arms the watchdog for the next gap. Runs in
+ *        breakpoint trap context of the traced task; every call here is
+ *        non-sleeping (hrtimer_cancel/start, spinlock, plain arithmetic).
  */
 static int fas_uprobe_handler(struct uprobe_consumer *self, struct pt_regs *regs) {
     struct fas_context *ctx = container_of(self, struct fas_context, consumer);
+    uint64_t now, delta;
 
     if (!atomic_read(&ctx->active))
         return 0;
 
-    atomic64_set(&ctx->last_queue_buffer_ms, fas_now_ms());
+    now = fas_now_ms();
+    delta = now - ctx->last_frame_ms;
+    ctx->last_frame_ms = now;
+
+    hrtimer_cancel(&ctx->watchdog_timer);
+
+    if (delta <= fas_small_threshold(ctx)) {
+        fas_ema_update(ctx, delta);
+        ctx->relock_count = 0;
+    } else if (delta <= fas_big_threshold(ctx)) {
+        fas_push_event(ctx->id, FAS_EVENT_SMALL_JANK, delta);
+        fas_relock_update(ctx, delta);
+    } else {
+        fas_push_event(ctx->id, FAS_EVENT_BIG_JANK, delta);
+        fas_relock_update(ctx, delta);
+    }
+
+    fas_arm_watchdog(ctx);
     return 0;
 }
 
@@ -185,45 +265,32 @@ static bool fas_uprobe_filter(struct uprobe_consumer *self, enum uprobe_filter_c
 }
 
 /**
- * @brief Independent vsync loop. Fires once per current_period and checks
- *        whether a queueBuffer call landed since the last tick. On a miss the
- *        loop doubles its own rate (down to FAS_MIN_PERIOD_NS) to narrow down
- *        how late the frame actually is; on recovery it resets to target.
+ * @brief Proactive boost signal, timed off the adaptive baseline. Fires at
+ *        most twice per frame gap (soft at small_threshold, hard at
+ *        big_threshold) and is cancelled the instant the real frame lands,
+ *        so a consistently slow app only ever gets one soft/hard pair per
+ *        gap instead of an escalating storm.
  */
-static enum hrtimer_restart fas_vsync_timer_fn(struct hrtimer *timer) {
-    struct fas_context *ctx = container_of(timer, struct fas_context, vsync_timer);
-    uint64_t last_seen, missed_ms;
+static enum hrtimer_restart fas_watchdog_fn(struct hrtimer *timer) {
+    struct fas_context *ctx = container_of(timer, struct fas_context, watchdog_timer);
+    uint64_t elapsed;
 
     if (!atomic_read(&ctx->active))
         return HRTIMER_NORESTART;
 
-    last_seen = atomic64_read(&ctx->last_queue_buffer_ms);
+    elapsed = fas_now_ms() - ctx->last_frame_ms;
 
-    if (last_seen != ctx->last_checked_ms) {
-        ctx->last_checked_ms = last_seen;
-        ctx->consecutive_miss = 0;
-        ctx->reported_small = false;
-        ctx->reported_big = false;
-        ctx->current_period = ctx->target_period;
-    } else {
-        ctx->consecutive_miss++;
-        missed_ms = ctx->consecutive_miss * ktime_to_ms(ctx->current_period);
-
-        if (!ctx->reported_small && missed_ms >= ctx->small_jank_ms) {
-            fas_push_event(ctx->id, FAS_EVENT_SMALL_JANK, missed_ms);
-            ctx->reported_small = true;
-        }
-        if (!ctx->reported_big && missed_ms >= ctx->big_jank_ms) {
-            fas_push_event(ctx->id, FAS_EVENT_BIG_JANK, missed_ms);
-            ctx->reported_big = true;
-        }
-
-        if (ktime_to_ns(ctx->current_period) > FAS_MIN_PERIOD_NS)
-            ctx->current_period = ns_to_ktime(ktime_divns(ctx->current_period, 2));
+    if (ctx->watchdog_stage == 0) {
+        fas_push_event(ctx->id, FAS_EVENT_BOOST_SOFT, elapsed);
+        ctx->watchdog_stage = 1;
+        hrtimer_forward_now(timer,
+            ms_to_ktime(fas_big_threshold(ctx) - fas_small_threshold(ctx)));
+        return HRTIMER_RESTART;
     }
 
-    hrtimer_forward_now(timer, ctx->current_period);
-    return HRTIMER_RESTART;
+    fas_push_event(ctx->id, FAS_EVENT_BOOST_HARD, elapsed);
+    ctx->watchdog_stage = 2;
+    return HRTIMER_NORESTART;
 }
 
 // ==========================================
@@ -267,12 +334,19 @@ static void fas_context_teardown(struct fas_context *ctx) {
     if (atomic_cmpxchg(&ctx->active, 1, 0) != 1)
         return;
 
-    hrtimer_cancel(&ctx->vsync_timer);
-
     if (ctx->uprobe_registered) {
         fas_uprobe_unregister(d_inode(ctx->libgui_path.dentry), g_libgui_offset, &ctx->consumer);
         ctx->uprobe_registered = false;
     }
+
+    /*
+     * uprobe_unregister() above blocks until any in-flight handler
+     * invocation has fully returned, so no handler can still be racing to
+     * re-arm the watchdog by the time we cancel it here. Cancelling first
+     * would leave a window where an in-flight handler re-arms the timer
+     * after our cancel but before unregister finishes waiting for it.
+     */
+    hrtimer_cancel(&ctx->watchdog_timer);
 
     path_put(&ctx->libgui_path);
 
@@ -310,13 +384,16 @@ static void fas_process_exit_probe(void *data, struct task_struct *task) {
     mutex_unlock(&fas_ctx_lock);
 }
 
+/**
+ * @brief Seeds (or re-seeds) the adaptive baseline from a hinted fps. This is
+ *        only a cold-start value now, real classification thresholds are
+ *        derived from baseline_ms which the uprobe handler continuously
+ *        corrects from observed frame intervals.
+ */
 static void fas_apply_fps_hint(struct fas_context *ctx, uint32_t fps) {
-    uint64_t target_ms = fps ? (1000 / fps) : (1000 / FAS_DEFAULT_FPS);
+    uint64_t ms = fps ? (1000 / fps) : (1000 / FAS_DEFAULT_FPS);
 
-    ctx->target_period = ms_to_ktime(target_ms);
-    ctx->current_period = ctx->target_period;
-    ctx->small_jank_ms = target_ms * 2;
-    ctx->big_jank_ms = max_t(uint64_t, target_ms * 5, FAS_BIG_JANK_FLOOR_MS);
+    ctx->baseline_ms = ms ? ms : 1;
 }
 
 // ==========================================
@@ -355,7 +432,8 @@ static long fas_ioctl_get_offset(void __user *arg) {
 
 /**
  * @brief Allocates a listener context, attaches the queueBuffer uprobe
- *        filtered to the requested pid, and starts its vsync hrtimer.
+ *        filtered to the requested pid, seeds the adaptive baseline, and
+ *        arms the boost watchdog.
  */
 static long fas_ioctl_register_listener(void __user *arg) {
     struct fas_register_args req;
@@ -389,7 +467,9 @@ static long fas_ioctl_register_listener(void __user *arg) {
 
     kref_init(&ctx->kref);
     atomic_set(&ctx->active, 1);
-    atomic64_set(&ctx->last_queue_buffer_ms, 0);
+    ctx->last_frame_ms = fas_now_ms();
+    ctx->watchdog_stage = 0;
+    ctx->relock_count = 0;
     INIT_WORK(&ctx->teardown_work, fas_teardown_work_fn);
     fas_apply_fps_hint(ctx, FAS_DEFAULT_FPS);
 
@@ -408,14 +488,14 @@ static long fas_ioctl_register_listener(void __user *arg) {
         goto err_remove_idr;
     ctx->uprobe_registered = true;
 
-    hrtimer_init(&ctx->vsync_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    ctx->vsync_timer.function = fas_vsync_timer_fn;
+    hrtimer_init(&ctx->watchdog_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    ctx->watchdog_timer.function = fas_watchdog_fn;
 
     mutex_lock(&fas_ctx_lock);
     list_add_tail(&ctx->node, &fas_ctx_list);
     mutex_unlock(&fas_ctx_lock);
 
-    hrtimer_start(&ctx->vsync_timer, ctx->current_period, HRTIMER_MODE_REL);
+    fas_arm_watchdog(ctx);
 
     req.ctx_id = ctx->id;
     if (copy_to_user(arg, &req, sizeof(req))) {
